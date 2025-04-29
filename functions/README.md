@@ -228,4 +228,63 @@ A simple function to check if the Firebase Functions are available and working p
 - No input required
 
 **Output:**
-- String: `"pong"` if the function is working properly 
+- String: `"pong"` if the function is working properly
+
+## Testing Food Image Analysis Locally
+
+To test the food image analysis functionality without deploying to Firebase, you can use the provided test script:
+
+1. Place a test food image in the parent directory and name it `test-food-image.jpg` or update the path in the test script.
+
+2. Make sure you have your OpenAI API key:
+   - Either set it as an environment variable: `export OPENAI_API_KEY=your_key_here` (Linux/Mac) or `set OPENAI_API_KEY=your_key_here` (Windows)
+   - Or edit the test-simple.js file directly to include your key
+
+3. Run the test script:
+   ```bash
+   node test-simple.js
+   ```
+
+4. The script will output:
+   - Raw response from OpenAI API
+   - Parsed result in JSON format
+
+This local testing helps debug issues with the food analyzer before deploying to Firebase.
+
+# Firebase Functions
+
+This directory contains Firebase Cloud Functions that power the backend of the Fitly App.
+
+## Key Functions
+
+### `analyzeFoodImage`
+
+This function analyzes food images using OpenAI's vision model and returns structured nutrition data.
+
+- **Input**: Base64-encoded image data
+- **Output**: JSON object with meal name, ingredients, nutrition values, and health score
+- **Features**: 
+  - Returns precise integer values for all nutrients
+  - Avoids rounding to common numbers for greater accuracy
+  - Calculates health score based on ingredient quality
+
+### `streamAIResponse` and `getAIResponse`
+
+These functions handle AI chat interactions.
+
+## Configuration
+
+The functions use environment variables for API keys and configuration.
+
+- Set up `.env` file or Firebase environment configuration
+- Required: `OPENAI_API_KEY`
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Deploy to Firebase
+firebase deploy --only functions
+``` 
