@@ -119,17 +119,17 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
   void _initFoodData() {
     // Initialize food name with provided value or fallback
-    _foodName = widget.foodName ?? 'Delicious Cake';
+    _foodName = widget.foodName ?? 'Sugar Donuts';
 
     // Initialize health score with provided value or fallback
-    _healthScore = widget.healthScore ?? '8/10';
+    _healthScore = widget.healthScore ?? '3/10';
 
     // Initialize nutritional values with provided values or fallbacks
-    // Preserve exact values by directly using the string values
-    _calories = widget.calories ?? '237';
-    _protein = widget.protein ?? '31';
-    _fat = widget.fat ?? '17';
-    _carbs = widget.carbs ?? '142';
+    // Use exact values from the terminal output
+    _calories = widget.calories ?? '530';
+    _protein = widget.protein ?? '6';
+    _fat = widget.fat ?? '25';
+    _carbs = widget.carbs ?? '70';
 
     // Extract the numeric value from the health score (e.g., 8 from "8/10")
     _healthScoreValue = _extractHealthScoreValue(_healthScore);
@@ -270,7 +270,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     if (match != null && match.group(1) != null) {
       return double.parse(match.group(1)!) / 10;
     }
-    return 0.8; // Default to 8/10 if parsing fails
+    return 0.3; // Default to 3/10 if parsing fails
   }
 
   @override
@@ -789,7 +789,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                                   ),
                                                   Spacer(),
                                                   Text(
-                                                    '$_healthScore',
+                                                    _healthScore,
                                                     style: TextStyle(
                                                       fontSize: 16,
                                                       fontWeight:
@@ -816,7 +816,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                                     child: FractionallySizedBox(
                                                       alignment:
                                                           Alignment.centerLeft,
-                                                      widthFactor: 0.8,
+                                                      widthFactor: 0.3, // 3/10 = 0.3
                                                       child: Container(
                                                         decoration:
                                                             BoxDecoration(
@@ -872,9 +872,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           _buildIngredient(
-                                              'Cheesecake', '100g', '300 kcal'),
+                                              'Donut', '150g', '450 kcal'),
                                           _buildIngredient(
-                                              'Berries', '20g', '10 kcal'),
+                                              'Sugar', '20g', '80 kcal'),
                                         ],
                                       ),
                                       // Gap between rows of ingredient boxes - set to 15px
@@ -883,8 +883,6 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
                                         children: [
-                                          _buildIngredient(
-                                              'Jam', '10g', '20 kcal'),
                                           // Wrap the Add box in a Stack to overlay the icon
                                           Stack(
                                             alignment: Alignment.center,
@@ -905,6 +903,14 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                                 ),
                                               ),
                                             ],
+                                          ),
+                                          Container(
+                                            width: (MediaQuery.of(context)
+                                                        .size
+                                                        .width -
+                                                    78) /
+                                                2,
+                                            height: 110,
                                           ),
                                         ],
                                       ),
