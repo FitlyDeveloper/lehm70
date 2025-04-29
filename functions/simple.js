@@ -17,18 +17,18 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
         'messages': [
           {
             'role': 'system',
-            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. Your primary goal is to return realistic nutrition data with NATURAL RANDOMNESS.\n\nKEY REQUIREMENT - NUMERICAL DIVERSITY:\n• All nutritional values must have NATURAL, REALISTIC ending digits\n• Your values should include ALL ending digits (0-9) with equal frequency\n• Do not avoid any specific digits - all digits 0-9 should appear naturally\n• Never favor certain ending digits over others (especially avoid always using 0, 5)\n• Ensure values look random and realistic (eg: 123, 456, 789, 321, 654, 987)\n\nCONTENT REQUIREMENTS:\n1. Return a single meal name for the entire image\n2. List ingredients with weights and calories\n3. Return whole number values for calories, protein, fat, carbs, vitamin C\n4. Calculate health score based on ingredient quality and nutritional value\n\nFORMAT REQUIREMENTS:\n1. Return only valid JSON\n2. No markdown, no explanations, no text outside JSON\n3. Follow exact format specified below\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": integer with NATURALLY DIVERSE ending digit,\n  "protein": integer with NATURALLY DIVERSE ending digit,\n  "fat": integer with NATURALLY DIVERSE ending digit,\n  "carbs": integer with NATURALLY DIVERSE ending digit,\n  "vitamin_c": integer with NATURALLY DIVERSE ending digit,\n  "health_score": "score/10"\n}'
+            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\n[CRITICAL NUMBER FORMATTING RULES]\nYou MUST generate integer nutritional values where the LAST DIGIT (ones place) follows these strict requirements:\n- The last digits MUST be distributed across all digits 0-9\n- For each set of 10 analyses, each digit 0-9 should appear roughly equal number of times\n- NEVER favor any specific digit (like 0 or 5) in the last position\n- DO NOT generate multiple values ending with the same digit within a single response\n- Example correct distribution: 127, 348, 456, 219, 583, 670, 361, 792, 904, 615\n- Example incorrect distribution: 130, 150, 230, 300, 450, 500, 600 (too many 0s)\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return PRECISE WHOLE NUMBER values with DIVERSE ending digits as described above\n4. Calculate a health score (1-10) based on ingredient quality and nutritional value\n\nHEALTH SCORE CRITERIA:\n• Positive indicators (+): Whole/unprocessed foods, healthy fats, high fiber foods\n• Negative indicators (-): Highly processed/fried ingredients, added sugars, high saturated fats\n• Score meaning: 9-10 (Very healthy), 7-8 (Healthy), 5-6 (Moderate), 3-4 (Unhealthy), 1-2 (Very unhealthy)\n\nYOU WILL BE PENALIZED SEVERELY IF YOU GENERATE VALUES WITH UNNATURAL DISTRIBUTIONS OF ENDING DIGITS.\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": integer with random last digit,\n  "protein": integer with random last digit (different from calories),\n  "fat": integer with random last digit (different from protein and calories),\n  "carbs": integer with random last digit (different from other values),\n  "vitamin_c": integer with random last digit (different from other values),\n  "health_score": "score/10"\n}'
           },
           {
             'role': 'user',
             'content': [
-              { 'type': 'text', 'text': "Analyze this food image and return nutrition data with NATURALLY DIVERSE VALUES in this EXACT format with no deviations:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"protein\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"fat\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"carbs\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"vitamin_c\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"health_score\": string\n}\n\nIMPORTANT: Make sure your values look natural and realistic - don't avoid any ending digits, make sure your values don't follow any patterns, and ensure all possible ending digits are represented naturally over multiple analyses." },
+              { 'type': 'text', 'text': "RETURN ONLY RAW JSON. Analyze this food image with the MOST PRECISE values possible. Each nutritional value MUST have a different last digit (ones place). Do not use the same last digit twice. Make sure to include all digits 0-9 across different analyses.\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": integer with random last digit (NOT ending in 0 or 5),\n  \"protein\": integer with random last digit (must differ from calories),\n  \"fat\": integer with random last digit (must differ from protein and calories),\n  \"carbs\": integer with random last digit (must differ from other values),\n  \"vitamin_c\": integer with random last digit (must differ from other values),\n  \"health_score\": string\n}" },
               { 'type': 'image_url', 'image_url': { 'url': imageData } }
             ]
           }
         ],
         'max_tokens': 1000,
-        'temperature': 0.8,
+        'temperature': 0.9,
         'response_format': { 'type': 'json_object' }
       })
     });
@@ -38,52 +38,7 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
     }
     
     const result = await response.json();
-    const content = result.choices[0].message.content;
-    
-    try {
-      // Parse the JSON to validate and potentially add randomness
-      const parsedResult = JSON.parse(content);
-      
-      // Check if nutritional values end in commonly rounded digits (0 or 5)
-      // The goal is not to ban these digits, but to randomly adjust SOME instances
-      // to ensure natural distribution across multiple calls
-      const probablyRounded = () => Math.random() < 0.75; // 75% chance to adjust rounded values
-      
-      if ((String(parsedResult.calories).endsWith('0') || String(parsedResult.calories).endsWith('5')) && probablyRounded()) {
-        // Add a small random adjustment to make the number look more natural
-        parsedResult.calories += Math.floor(Math.random() * 4) + 1; // Add 1-4
-      }
-      
-      if ((String(parsedResult.protein).endsWith('0') || String(parsedResult.protein).endsWith('5')) && probablyRounded()) {
-        // Add a small random adjustment to protein
-        const adjustment = Math.floor(Math.random() * 4) + 1;
-        parsedResult.protein += adjustment;
-      }
-      
-      if ((String(parsedResult.fat).endsWith('0') || String(parsedResult.fat).endsWith('5')) && probablyRounded()) {
-        // Add a small random adjustment to fat
-        const adjustment = Math.floor(Math.random() * 4) + 1;
-        parsedResult.fat += adjustment;
-      }
-      
-      if ((String(parsedResult.carbs).endsWith('0') || String(parsedResult.carbs).endsWith('5')) && probablyRounded()) {
-        // Add a small random adjustment to carbs
-        const adjustment = Math.floor(Math.random() * 4) + 1;
-        parsedResult.carbs += adjustment;
-      }
-      
-      if ((String(parsedResult.vitamin_c).endsWith('0') || String(parsedResult.vitamin_c).endsWith('5')) && probablyRounded()) {
-        // Add a small random adjustment to vitamin_c
-        const adjustment = Math.floor(Math.random() * 4) + 1;
-        parsedResult.vitamin_c += adjustment;
-      }
-      
-      // Return the adjusted JSON
-      return JSON.stringify(parsedResult);
-    } catch (error) {
-      console.error('Result processing error:', error);
-      return content; // Return original content if processing fails
-    }
+    return result.choices[0].message.content;
   } catch (error) {
     console.error('Error analyzing food image:', error);
     throw error;
