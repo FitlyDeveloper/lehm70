@@ -125,10 +125,11 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     _healthScore = widget.healthScore ?? '8/10';
 
     // Initialize nutritional values with provided values or fallbacks
-    _calories = widget.calories ?? '500';
-    _protein = widget.protein ?? '30';
-    _fat = widget.fat ?? '32';
-    _carbs = widget.carbs ?? '125';
+    // Preserve exact values by directly using the string values
+    _calories = widget.calories ?? '237';
+    _protein = widget.protein ?? '31';
+    _fat = widget.fat ?? '17';
+    _carbs = widget.carbs ?? '142';
 
     // Extract the numeric value from the health score (e.g., 8 from "8/10")
     _healthScoreValue = _extractHealthScoreValue(_healthScore);
@@ -174,7 +175,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       });
 
       print(
-          'Loaded interaction data for $foodId: liked=$_isLiked, bookmarked=$_isBookmarked, counter=$_counter');
+          'Loaded data for $foodId: liked=$_isLiked, bookmarked=$_isBookmarked, counter=$_counter');
       print(
           'Using nutrition data: calories=$_calories, protein=$_protein, fat=$_fat, carbs=$_carbs, healthScore=$_healthScore');
     } catch (e) {
@@ -700,7 +701,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
-                                                  '$_calories',
+                                                  _calories,
                                                   style: TextStyle(
                                                     fontSize: 20,
                                                     fontWeight: FontWeight.bold,
@@ -731,11 +732,11 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceAround,
                                           children: [
-                                            _buildMacro('Protein', '$_protein',
+                                            _buildMacro('Protein', _protein,
                                                 Color(0xFFD7C1FF)),
-                                            _buildMacro('Fat', '$_fat',
-                                                Color(0xFFFFD8B1)),
-                                            _buildMacro('Carbs', '$_carbs',
+                                            _buildMacro(
+                                                'Fat', _fat, Color(0xFFFFD8B1)),
+                                            _buildMacro('Carbs', _carbs,
                                                 Color(0xFFB1EFD8)),
                                           ],
                                         ),
@@ -1023,7 +1024,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
             borderRadius: BorderRadius.circular(4),
           ),
           child: FractionallySizedBox(
-            widthFactor: 1.0, // Changed from 0.5 to 1.0 to fill entirely
+            widthFactor: 1.0, // Fill the progress bar completely
             child: Container(
               decoration: BoxDecoration(
                 color: color,
