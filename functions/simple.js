@@ -17,18 +17,18 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
         'messages': [
           {
             'role': 'system',
-            'content': '[⚠️ CRITICAL INSTRUCTION ⚠️] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON WITH EXTREMELY RANDOMIZED VALUES.\n\nMOST IMPORTANT RULES:\n1. RANDOMNESS ENFORCEMENT: Generate values that are RANDOM and NON-ROUNDED\n   ⚠️ Your values will be checked by a validation system that rejects rounded numbers\n   ⚠️ Your values will be rejected if they don\'t have uniform last-digit distribution\n\n2. STRICTLY PROHIBITED OUTPUTS:\n   ❌ NEVER output values ending in 0 or 5\n   ❌ NEVER output values divisible by 5 or 10\n   ❌ NEVER output "nice" or "clean" numbers\n   ❌ NEVER output values 10, 15, 20, 25, 30, 35, etc.\n   ❌ NEVER output any protein value of 20g or carbs value of 75g\n   ❌ NEVER use the same ending digit more than once in your output\n\n3. REQUIRED OUTPUT PATTERNS:\n   ✅ CALORIES must end in 1, 3, 7, or 9 (e.g., 631, 483, 217, 599)\n   ✅ PROTEIN must end in 2, 3, 7, or 8 (e.g., 22, 33, 17, 28)\n   ✅ FAT must end in 2, 4, 6, or 9 (e.g., 32, 24, 16, 29)\n   ✅ CARBS must end in 1, 4, 6, or 8 (e.g., 71, 54, 86, 78)\n   ✅ VITAMIN C must use 2-3 digits and end in 3, 6, 7, or 9 (e.g., 13, 26, 47, 89)\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (must also be non-rounded, e.g., "Pasta (93g) 213kcal")\n3. Calculate a health score (1-10) based ONLY on ingredient quality and nutritional value\n4. Return PRECISE JSON with no extra text or explanations\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": [NON-ROUNDED INTEGER - MUST END IN 1,3,7,9],\n  "protein": [NON-ROUNDED INTEGER - MUST END IN 2,3,7,8],\n  "fat": [NON-ROUNDED INTEGER - MUST END IN 2,4,6,9],\n  "carbs": [NON-ROUNDED INTEGER - MUST END IN 1,4,6,8],\n  "vitamin_c": [NON-ROUNDED INTEGER - MUST END IN 3,6,7,9],\n  "health_score": "score/10"\n}'
+            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. Your primary goal is to return realistic nutrition data with NATURAL RANDOMNESS.\n\nKEY REQUIREMENT - NUMERICAL DIVERSITY:\n• All nutritional values must have NATURAL, REALISTIC ending digits\n• Your values should include ALL ending digits (0-9) with equal frequency\n• Do not avoid any specific digits - all digits 0-9 should appear naturally\n• Never favor certain ending digits over others (especially avoid always using 0, 5)\n• Ensure values look random and realistic (eg: 123, 456, 789, 321, 654, 987)\n\nCONTENT REQUIREMENTS:\n1. Return a single meal name for the entire image\n2. List ingredients with weights and calories\n3. Return whole number values for calories, protein, fat, carbs, vitamin C\n4. Calculate health score based on ingredient quality and nutritional value\n\nFORMAT REQUIREMENTS:\n1. Return only valid JSON\n2. No markdown, no explanations, no text outside JSON\n3. Follow exact format specified below\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": integer with NATURALLY DIVERSE ending digit,\n  "protein": integer with NATURALLY DIVERSE ending digit,\n  "fat": integer with NATURALLY DIVERSE ending digit,\n  "carbs": integer with NATURALLY DIVERSE ending digit,\n  "vitamin_c": integer with NATURALLY DIVERSE ending digit,\n  "health_score": "score/10"\n}'
           },
           {
             'role': 'user',
             'content': [
-              { 'type': 'text', 'text': "⚠️ CRITICAL INSTRUCTION: You MUST return non-rounded, seemingly random values. Your response will be REJECTED if it contains rounded values or patterns!\n\nAnalyze this food image and return nutrition data following these STRICT rules:\n\n1. All numeric values MUST appear random and non-rounded\n2. CALORIES must end in 1, 3, 7, or 9\n3. PROTEIN must end in 2, 3, 7, or 8\n4. FAT must end in 2, 4, 6, or 9\n5. CARBS must end in 1, 4, 6, or 8\n6. VITAMIN C must end in 3, 6, 7, or 9\n\nFormat required:\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": integer (MUST END IN 1,3,7,9),\n  \"protein\": integer (MUST END IN 2,3,7,8),\n  \"fat\": integer (MUST END IN 2,4,6,9),\n  \"carbs\": integer (MUST END IN 1,4,6,8),\n  \"vitamin_c\": integer (MUST END IN 3,6,7,9),\n  \"health_score\": string\n}" },
+              { 'type': 'text', 'text': "Analyze this food image and return nutrition data with NATURALLY DIVERSE VALUES in this EXACT format with no deviations:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"protein\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"fat\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"carbs\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"vitamin_c\": integer (ENSURE NATURALLY RANDOM ending digits - all digits 0-9 should appear with equal frequency),\n  \"health_score\": string\n}\n\nIMPORTANT: Make sure your values look natural and realistic - don't avoid any ending digits, make sure your values don't follow any patterns, and ensure all possible ending digits are represented naturally over multiple analyses." },
               { 'type': 'image_url', 'image_url': { 'url': imageData } }
             ]
           }
         ],
         'max_tokens': 1000,
-        'temperature': 0.9,
+        'temperature': 0.8,
         'response_format': { 'type': 'json_object' }
       })
     });
@@ -40,59 +40,49 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
     const result = await response.json();
     const content = result.choices[0].message.content;
     
-    // Add validation to reject rounded values
     try {
+      // Parse the JSON to validate and potentially add randomness
       const parsedResult = JSON.parse(content);
       
-      // Validate that numbers follow our required patterns
-      const validCalories = String(parsedResult.calories).endsWith('1') || 
-                            String(parsedResult.calories).endsWith('3') || 
-                            String(parsedResult.calories).endsWith('7') || 
-                            String(parsedResult.calories).endsWith('9');
-                            
-      const validProtein = String(parsedResult.protein).endsWith('2') || 
-                           String(parsedResult.protein).endsWith('3') || 
-                           String(parsedResult.protein).endsWith('7') || 
-                           String(parsedResult.protein).endsWith('8');
-                           
-      const validFat = String(parsedResult.fat).endsWith('2') || 
-                       String(parsedResult.fat).endsWith('4') || 
-                       String(parsedResult.fat).endsWith('6') || 
-                       String(parsedResult.fat).endsWith('9');
-                       
-      const validCarbs = String(parsedResult.carbs).endsWith('1') || 
-                         String(parsedResult.carbs).endsWith('4') || 
-                         String(parsedResult.carbs).endsWith('6') || 
-                         String(parsedResult.carbs).endsWith('8');
-                         
-      const validVitaminC = String(parsedResult.vitamin_c).endsWith('3') || 
-                            String(parsedResult.vitamin_c).endsWith('6') || 
-                            String(parsedResult.vitamin_c).endsWith('7') || 
-                            String(parsedResult.vitamin_c).endsWith('9');
-
-      // Check for common rounded values we want to avoid
-      const isRounded = parsedResult.protein === 20 || parsedResult.carbs === 75;
+      // Check if nutritional values end in commonly rounded digits (0 or 5)
+      // The goal is not to ban these digits, but to randomly adjust SOME instances
+      // to ensure natural distribution across multiple calls
+      const probablyRounded = () => Math.random() < 0.75; // 75% chance to adjust rounded values
       
-      // If all validations pass, return the result
-      if (validCalories && validProtein && validFat && validCarbs && validVitaminC && !isRounded) {
-        console.log('Validation passed! Values appear random and non-rounded.');
-        return content;
-      } else {
-        // If validation fails, adjust the values to force compliance
-        console.log('Validation failed! Adjusting values to ensure non-rounded numbers.');
-        
-        // Correct any invalid values
-        if (!validCalories) parsedResult.calories = parsedResult.calories + 1;
-        if (!validProtein || parsedResult.protein === 20) parsedResult.protein = parsedResult.protein + 2;
-        if (!validFat) parsedResult.fat = parsedResult.fat + 2;
-        if (!validCarbs || parsedResult.carbs === 75) parsedResult.carbs = parsedResult.carbs + 1;
-        if (!validVitaminC) parsedResult.vitamin_c = parsedResult.vitamin_c + 3;
-        
-        return JSON.stringify(parsedResult);
+      if ((String(parsedResult.calories).endsWith('0') || String(parsedResult.calories).endsWith('5')) && probablyRounded()) {
+        // Add a small random adjustment to make the number look more natural
+        parsedResult.calories += Math.floor(Math.random() * 4) + 1; // Add 1-4
       }
+      
+      if ((String(parsedResult.protein).endsWith('0') || String(parsedResult.protein).endsWith('5')) && probablyRounded()) {
+        // Add a small random adjustment to protein
+        const adjustment = Math.floor(Math.random() * 4) + 1;
+        parsedResult.protein += adjustment;
+      }
+      
+      if ((String(parsedResult.fat).endsWith('0') || String(parsedResult.fat).endsWith('5')) && probablyRounded()) {
+        // Add a small random adjustment to fat
+        const adjustment = Math.floor(Math.random() * 4) + 1;
+        parsedResult.fat += adjustment;
+      }
+      
+      if ((String(parsedResult.carbs).endsWith('0') || String(parsedResult.carbs).endsWith('5')) && probablyRounded()) {
+        // Add a small random adjustment to carbs
+        const adjustment = Math.floor(Math.random() * 4) + 1;
+        parsedResult.carbs += adjustment;
+      }
+      
+      if ((String(parsedResult.vitamin_c).endsWith('0') || String(parsedResult.vitamin_c).endsWith('5')) && probablyRounded()) {
+        // Add a small random adjustment to vitamin_c
+        const adjustment = Math.floor(Math.random() * 4) + 1;
+        parsedResult.vitamin_c += adjustment;
+      }
+      
+      // Return the adjusted JSON
+      return JSON.stringify(parsedResult);
     } catch (error) {
-      console.error('Result validation error:', error);
-      return content; // Return original content if validation fails
+      console.error('Result processing error:', error);
+      return content; // Return original content if processing fails
     }
   } catch (error) {
     console.error('Error analyzing food image:', error);
