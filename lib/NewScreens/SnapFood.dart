@@ -540,9 +540,9 @@ class _SnapFoodState extends State<SnapFood> {
             _extractDecimalValue(analysisData['vitamin_c']?.toString() ?? "0");
         String healthScore = analysisData['health_score']?.toString() ?? "5/10";
 
-        // Display in the format the user wants - with the exact format requested, NO "Food item 1:" prefix
+        // Display in the format the user wants - with the exact format requested, adding "Name:" only in terminal output
         print("\n----- FOOD ANALYSIS RESULTS -----");
-        print("$mealName");
+        print("Name: $mealName"); // Add "Name:" prefix only for terminal output
         String ingredientsText = ingredients.isNotEmpty
             ? ingredients.join(", ")
             : "Mixed ingredients";
@@ -590,7 +590,8 @@ class _SnapFoodState extends State<SnapFood> {
             protein.toString(),
             fat.toString(),
             carbs.toString(),
-            ingredientsList);
+            ingredientsList,
+            healthScore);
 
         // Set the analysis result for the UI
         setState(() {
@@ -913,9 +914,11 @@ class _SnapFoodState extends State<SnapFood> {
     // Try to extract digits from the string, including decimal values
     final match = RegExp(r'(\d+\.?\d*)').firstMatch(input);
     if (match != null && match.group(1) != null) {
-      // Remove decimal points by parsing as double and converting to int
+      // Parse as double then convert to int directly - no rounding
       double value = double.tryParse(match.group(1)!) ?? 0.0;
-      return value.toInt().toString();
+      return value
+          .toInt()
+          .toString(); // Convert to int to remove decimal places
     }
     return "0"; // Return string "0" as fallback (without decimal)
   }
@@ -958,7 +961,8 @@ class _SnapFoodState extends State<SnapFood> {
       String protein,
       String fat,
       String carbs,
-      List<Map<String, dynamic>> ingredientsList) async {
+      List<Map<String, dynamic>> ingredientsList,
+      [String healthScore = "5/10"]) async {
     try {
       // Get the current image bytes
       Uint8List? imageBytes;
@@ -1011,6 +1015,7 @@ class _SnapFoodState extends State<SnapFood> {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'image': base64Image,
         'ingredients': ingredientsList.map((ing) => ing['name']).toList(),
+        'health_score': healthScore, // Store health score in the food card
       };
 
       // Load existing food cards
@@ -1035,7 +1040,14 @@ class _SnapFoodState extends State<SnapFood> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => FoodCardOpen(foodName: foodName),
+              builder: (context) => FoodCardOpen(
+                foodName: foodName,
+                healthScore: healthScore,
+                calories: _extractNumericValue(calories),
+                protein: _extractNumericValue(protein),
+                fat: _extractNumericValue(fat),
+                carbs: _extractNumericValue(carbs),
+              ),
             ),
           );
         });
