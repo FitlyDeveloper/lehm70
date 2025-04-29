@@ -6,7 +6,6 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
   try {
     console.log('Analyzing food image...');
     
-<<<<<<< Updated upstream
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -18,18 +17,18 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
         'messages': [
           {
             'role': 'system',
-            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate") WITHOUT "Name:" prefix\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return WHOLE NUMBER values for calories, protein, fat, carbs, vitamin C - NEVER include decimal points\n4. Calculate a health score (1-10) based ONLY on ingredient quality and nutritional value:\n\n   HEALTH SCORE CRITERIA:\n   • Positive indicators (+): Whole/unprocessed foods (vegetables, legumes, whole grains, lean meats), healthy fats (olive oil, avocado), high fiber or micronutrient-dense foods (spinach, lentils, salmon)\n   • Negative indicators (-): Highly processed or fried ingredients, high added sugars (syrups, sweetened sauces), high saturated fats (butter, cream, fatty meats), excess sodium (salty sauces, processed meats)\n   • Score meaning: 9-10 (Very healthy), 7-8 (Healthy), 5-6 (Moderate), 3-4 (Unhealthy), 1-2 (Very unhealthy)\n\n5. Use REALISTIC and PRECISE estimates - DO NOT round macronutrient values\n6. DO NOT respond with markdown code blocks or text explanations\n7. DO NOT prefix your response with "json" or ```\n8. ONLY RETURN A RAW JSON OBJECT\n9. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": integer,\n  "protein": integer,\n  "fat": integer,\n  "carbs": integer,\n  "vitamin_c": integer,\n  "health_score": "score/10"\n}'
+            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate") WITHOUT "Name:" prefix\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return PRECISE WHOLE NUMBER values with DIVERSE ending digits:\n   • Use integers that end in ALL digits 0-9 with equal frequency\n   • NEVER favor rounded numbers ending in 0 or 5\n   • For example: Use values like 127, 183, 96, 312 instead of 130, 185, 95, 310\n   • Make sure values are diverse and realistic - NOT all ending in the same digit\n4. Calculate a health score (1-10) based ONLY on ingredient quality and nutritional value:\n\n   HEALTH SCORE CRITERIA:\n   • Positive indicators (+): Whole/unprocessed foods (vegetables, legumes, whole grains, lean meats), healthy fats (olive oil, avocado), high fiber or micronutrient-dense foods (spinach, lentils, salmon)\n   • Negative indicators (-): Highly processed or fried ingredients, high added sugars (syrups, sweetened sauces), high saturated fats (butter, cream, fatty meats), excess sodium (salty sauces, processed meats)\n   • Score meaning: 9-10 (Very healthy), 7-8 (Healthy), 5-6 (Moderate), 3-4 (Unhealthy), 1-2 (Very unhealthy)\n\n5. Use REALISTIC and PRECISE estimates - DO NOT round macronutrient values\n6. DO NOT respond with markdown code blocks or text explanations\n7. DO NOT prefix your response with "json" or ```\n8. ONLY RETURN A RAW JSON OBJECT\n9. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": precise integer (ensure all digits 0-9 appear in last positions),\n  "protein": precise integer (ensure all digits 0-9 appear in last positions),\n  "fat": precise integer (ensure all digits 0-9 appear in last positions),\n  "carbs": precise integer (ensure all digits 0-9 appear in last positions),\n  "vitamin_c": precise integer (ensure all digits 0-9 appear in last positions),\n  "health_score": "score/10"\n}'
           },
           {
             'role': 'user',
             'content': [
-              { 'type': 'text', 'text': "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations:\n\n{\n  \"meal_name\": string (single name for entire meal, NO \"Name:\" prefix),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string\n}" },
+              { 'type': 'text', 'text': "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data with PRECISE NATURAL VALUES in this EXACT format with no deviations:\n\n{\n  \"meal_name\": string (single name for entire meal, NO \"Name:\" prefix),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": precise integer (not rounded to multiples of 5 or 10),\n  \"protein\": precise integer (use endings 0-9 with equal frequency),\n  \"fat\": precise integer (use endings 0-9 with equal frequency),\n  \"carbs\": precise integer (use endings 0-9 with equal frequency),\n  \"vitamin_c\": precise integer (use endings 0-9 with equal frequency),\n  \"health_score\": string\n}" },
               { 'type': 'image_url', 'image_url': { 'url': imageData } }
             ]
           }
         ],
         'max_tokens': 1000,
-        'temperature': 0.2,
+        'temperature': 0.7,
         'response_format': { 'type': 'json_object' }
       })
     });
@@ -44,45 +43,6 @@ exports.analyzeFoodImageImpl = async (imageData, apiKey) => {
     console.error('Error analyzing food image:', error);
     throw error;
   }
-=======
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      'model': 'gpt-4o',
-      'messages': [
-        {
-          'role': 'system',
-            'content': '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate") WITHOUT "Name:" prefix\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return WHOLE NUMBER values for calories, protein, fat, carbs, vitamin C - NEVER include decimal points\n4. Calculate a health score (1-10) based ONLY on ingredient quality and nutritional value:\n\n   HEALTH SCORE CRITERIA:\n   • Positive indicators (+): Whole/unprocessed foods (vegetables, legumes, whole grains, lean meats), healthy fats (olive oil, avocado), high fiber or micronutrient-dense foods (spinach, lentils, salmon)\n   • Negative indicators (-): Highly processed or fried ingredients, high added sugars (syrups, sweetened sauces), high saturated fats (butter, cream, fatty meats), excess sodium (salty sauces, processed meats)\n   • Score meaning: 9-10 (Very healthy), 7-8 (Healthy), 5-6 (Moderate), 3-4 (Unhealthy), 1-2 (Very unhealthy)\n\n5. Use REALISTIC and PRECISE estimates - DO NOT round macronutrient values\n6. DO NOT respond with markdown code blocks or text explanations\n7. DO NOT prefix your response with "json" or ```\n8. ONLY RETURN A RAW JSON OBJECT\n9. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "calories": integer,\n  "protein": integer,\n  "fat": integer,\n  "carbs": integer,\n  "vitamin_c": integer,\n  "health_score": "score/10"\n}'
-        },
-        {
-          'role': 'user',
-          'content': [
-              { 'type': 'text', 'text': "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations:\n\n{\n  \"meal_name\": string (single name for entire meal, NO \"Name:\" prefix),\n  \"ingredients\": array of strings with weights and calories,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string\n}" },
-            { 'type': 'image_url', 'image_url': { 'url': imageData } }
-          ]
-        }
-      ],
-        'max_tokens': 1000,
-        'temperature': 0.2,
-        'response_format': { 'type': 'json_object' }
-    })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-  
-  const result = await response.json();
-  return result.choices[0].message.content;
-  } catch (error) {
-    console.error('Error analyzing food image:', error);
-    throw error;
-  }
->>>>>>> Stashed changes
 }
 
 // Simple ping function for status checking
