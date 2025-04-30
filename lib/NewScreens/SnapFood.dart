@@ -548,14 +548,14 @@ class _SnapFoodState extends State<SnapFood> {
             : "Mixed ingredients";
         print("Ingredients: $ingredientsText");
         print(
-            "Calories: ${calories.toStringAsFixed(1)}kcal"); // Format with one decimal place
+            "Calories: ${calories.toInt()}kcal"); // Format as integer for terminal
         print("Protein: ${protein.toInt()}g");
         print("Fat: ${fat.toInt()}g");
         print("Carbs: ${carbs.toInt()}g");
         print("Vitamin C: ${vitaminC.toInt()}mg");
         print("Health Score: $healthScore");
         print(
-            "TOTAL CALORIES: ${calories.toStringAsFixed(1)}kcal"); // Format with one decimal place
+            "TOTAL CALORIES: ${calories.toInt()}kcal"); // Format as integer for terminal
         print("---------------------------------\n");
 
         // Save the data
