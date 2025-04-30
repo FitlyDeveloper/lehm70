@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
 const fs = require('fs'); // For logging to file
 
+// Updated server to fix nutritional calculation issues - specifically realistic macro values
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
