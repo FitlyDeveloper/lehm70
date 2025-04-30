@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Features/codia/codia_page.dart';
+import 'dart:convert'; // For base64 decoding
+import 'dart:typed_data'; // For Uint8List
 
 // Custom scroll physics optimized for mouse wheel
 class SlowScrollPhysics extends ScrollPhysics {
@@ -37,6 +39,7 @@ class FoodCardOpen extends StatefulWidget {
   final String? protein;
   final String? fat;
   final String? carbs;
+  final String? imageBase64; // Add parameter for base64 encoded image
 
   const FoodCardOpen({
     super.key,
@@ -46,6 +49,7 @@ class FoodCardOpen extends StatefulWidget {
     this.protein,
     this.fat,
     this.carbs,
+    this.imageBase64, // Include in constructor
   });
 
   @override
@@ -69,6 +73,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   late String _protein;
   late String _fat;
   late String _carbs;
+  Uint8List? _imageBytes; // Store decoded image bytes
+  String?
+      _storedImageBase64; // For storing retrieved image from SharedPreferences
 
   @override
   void initState() {
@@ -78,6 +85,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
     // Initialize food data
     _initFoodData();
+
+    // Process image if available
+    _processImage();
 
     // Load saved data from SharedPreferences
     _loadSavedData();
@@ -125,7 +135,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     _healthScore = widget.healthScore ?? '8/10';
 
     // Initialize nutritional values with provided values or fallbacks
-    _calories = widget.calories ?? '500';
+    _calories = _formatDecimalValue(widget.calories ?? '500');
     _protein = widget.protein ?? '30';
     _fat = widget.fat ?? '32';
     _carbs = widget.carbs ?? '125';
@@ -135,6 +145,20 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
     print(
         'Initialized food data: name=$_foodName, calories=$_calories, protein=$_protein, fat=$_fat, carbs=$_carbs, healthScore=$_healthScore');
+  }
+
+  void _processImage() {
+    // Try to use image from parameters first
+    if (widget.imageBase64 != null && widget.imageBase64!.isNotEmpty) {
+      try {
+        // Decode base64 string to bytes
+        _imageBytes = base64Decode(widget.imageBase64!);
+        print(
+            'Loaded image from passed parameter, size: ${_imageBytes!.length} bytes');
+      } catch (e) {
+        print('Error decoding image from parameter: $e');
+      }
+    }
   }
 
   Future<void> _loadSavedData() async {
@@ -150,7 +174,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
         // Only load nutrition values if they weren't passed as parameters
         if (widget.calories == null || widget.calories!.isEmpty) {
-          _calories = prefs.getString('food_calories_$foodId') ?? _calories;
+          _calories = _formatDecimalValue(
+              prefs.getString('food_calories_$foodId') ?? _calories);
         }
 
         if (widget.protein == null || widget.protein!.isEmpty) {
@@ -170,6 +195,20 @@ class _FoodCardOpenState extends State<FoodCardOpen>
               prefs.getString('food_health_score_$foodId') ?? _healthScore;
           // Update health score value when loaded
           _healthScoreValue = _extractHealthScoreValue(_healthScore);
+        }
+
+        // Load image from SharedPreferences if not already loaded from parameter
+        if (_imageBytes == null) {
+          _storedImageBase64 = prefs.getString('food_image_$foodId');
+          if (_storedImageBase64 != null && _storedImageBase64!.isNotEmpty) {
+            try {
+              _imageBytes = base64Decode(_storedImageBase64!);
+              print(
+                  'Loaded image from SharedPreferences, size: ${_imageBytes!.length} bytes');
+            } catch (e) {
+              print('Error decoding stored image: $e');
+            }
+          }
         }
       });
 
@@ -197,6 +236,12 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       await prefs.setString('food_fat_$foodId', _fat);
       await prefs.setString('food_carbs_$foodId', _carbs);
       await prefs.setString('food_health_score_$foodId', _healthScore);
+
+      // Save image if available
+      if (_imageBytes != null) {
+        final imageBase64 = base64Encode(_imageBytes!);
+        await prefs.setString('food_image_$foodId', imageBase64);
+      }
 
       print(
           'Saved data for $foodId: liked=$_isLiked, bookmarked=$_isBookmarked, counter=$_counter, calories=$_calories, protein=$_protein, fat=$_fat, carbs=$_carbs, healthScore=$_healthScore');
@@ -272,6 +317,28 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     return 0.8; // Default to 8/10 if parsing fails
   }
 
+  // Helper method to format decimal values for consistent display
+  String _formatDecimalValue(String input) {
+    try {
+      // Try to extract number with possible decimal point
+      final match = RegExp(r'(\d+\.?\d*)').firstMatch(input);
+      if (match != null && match.group(1) != null) {
+        // Use original value with decimal places
+        double value = double.tryParse(match.group(1)!) ?? 0.0;
+        if (value == value.toInt()) {
+          // Display as integer if it's a whole number
+          return value.toInt().toString();
+        } else {
+          // Otherwise keep one decimal place
+          return value.toStringAsFixed(1);
+        }
+      }
+    } catch (e) {
+      print('Error formatting decimal value: $e');
+    }
+    return input; // Return original if parsing fails
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusBarHeight = MediaQuery.of(context).viewPadding.top;
@@ -315,26 +382,48 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                       color: Color(0xFFDADADA),
                       child: Stack(
                         children: [
-                          // Meal image
-                          Center(
-                            child: Image.asset(
-                              'assets/images/meal1.png',
-                              width: 48,
-                              height: 48,
-                            ),
-                          ),
+                          // Meal image - show user image or fallback
+                          _imageBytes != null
+                              ? Container(
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  decoration: BoxDecoration(
+                                    image: DecorationImage(
+                                      image: MemoryImage(_imageBytes!),
+                                      fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Image.asset(
+                                    'assets/images/meal1.png',
+                                    width: 48,
+                                    height: 48,
+                                  ),
+                                ),
                           // Back button inside the scrollable area
                           Positioned(
                             top: statusBarHeight + 16,
                             left: 16,
-                            child: GestureDetector(
-                              onTap: _handleBack,
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
                               child: Container(
-                                width: 40,
-                                height: 40,
-                                alignment: Alignment.center,
-                                child: Icon(Icons.arrow_back,
-                                    color: Colors.black, size: 24),
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.7),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.arrow_back,
+                                      color: Colors.black, size: 24),
+                                  onPressed: _handleBack,
+                                  padding: EdgeInsets.zero,
+                                  constraints: BoxConstraints(),
+                                ),
                               ),
                             ),
                           ),
@@ -344,31 +433,54 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                             right: 16,
                             child: Row(
                               children: [
-                                GestureDetector(
-                                  onTap: () {},
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
                                   child: Container(
-                                    width: 40,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    child: Image.asset(
-                                      'assets/images/share.png',
-                                      width: 24,
-                                      height: 24,
-                                      color: Colors.black,
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.7),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Image.asset(
+                                        'assets/images/share.png',
+                                        width:
+                                            21.6, // 10% smaller (24 * 0.9 = 21.6)
+                                        height: 21.6, // 10% smaller
+                                        color: Colors.black,
+                                      ),
+                                      onPressed: () {},
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints(),
                                     ),
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () {},
+                                SizedBox(width: 8), // Add spacing between icons
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
                                   child: Container(
-                                    width: 40,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    child: Image.asset(
-                                      'assets/images/more.png',
-                                      width: 24,
-                                      height: 24,
-                                      color: Colors.black,
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.7),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Image.asset(
+                                        'assets/images/more2.png',
+                                        width:
+                                            21.6, // 10% smaller (24 * 0.9 = 21.6)
+                                        height: 21.6, // 10% smaller
+                                        color: Colors.black,
+                                      ),
+                                      onPressed: () {},
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints(),
                                     ),
                                   ),
                                 ),

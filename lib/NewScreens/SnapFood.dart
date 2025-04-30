@@ -547,13 +547,15 @@ class _SnapFoodState extends State<SnapFood> {
             ? ingredients.join(", ")
             : "Mixed ingredients";
         print("Ingredients: $ingredientsText");
-        print("Calories: ${calories.toInt()}kcal");
+        print(
+            "Calories: ${calories.toStringAsFixed(1)}kcal"); // Format with one decimal place
         print("Protein: ${protein.toInt()}g");
         print("Fat: ${fat.toInt()}g");
         print("Carbs: ${carbs.toInt()}g");
         print("Vitamin C: ${vitaminC.toInt()}mg");
         print("Health Score: $healthScore");
-        print("TOTAL CALORIES: ${calories.toInt()}kcal");
+        print(
+            "TOTAL CALORIES: ${calories.toStringAsFixed(1)}kcal"); // Format with one decimal place
         print("---------------------------------\n");
 
         // Save the data
@@ -1002,16 +1004,14 @@ class _SnapFoodState extends State<SnapFood> {
         }
       }
 
-      // Parse values from the analysis
-      double caloriesValue = _extractDecimalValue(calories);
-
       // Create food card data - store raw values with decimal precision
       final Map<String, dynamic> foodCard = {
         'name': foodName.isNotEmpty ? foodName : 'Analyzed Meal',
-        'calories': _extractNumericValue(calories), // Use de-rounded calories
-        'protein': _extractNumericValue(protein), // Use de-rounded protein
-        'fat': _extractNumericValue(fat), // Use de-rounded fat
-        'carbs': _extractNumericValue(carbs), // Use de-rounded carbs
+        'calories':
+            calories, // Store original calories string with decimal places
+        'protein': protein, // Use original protein value
+        'fat': fat, // Use original fat value
+        'carbs': carbs, // Use original carbs value
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'image': base64Image,
         'ingredients': ingredientsList.map((ing) => ing['name']).toList(),
@@ -1037,16 +1037,33 @@ class _SnapFoodState extends State<SnapFood> {
       // After saving, navigate to FoodCardOpen with the detected food name
       if (mounted) {
         Future.delayed(Duration(milliseconds: 1000), () {
+          // Store original high-quality image for FoodCardOpen
+          String? highQualityImageBase64;
+          if (_webImageBytes != null) {
+            // Use original image bytes for best quality
+            highQualityImageBase64 = base64Encode(_webImageBytes!);
+          } else if (_imageFile != null && !kIsWeb) {
+            try {
+              // Read file bytes directly for best quality
+              final originalBytes = _imageFile!.readAsBytesSync();
+              highQualityImageBase64 = base64Encode(originalBytes);
+            } catch (e) {
+              print("Error reading original image file: $e");
+            }
+          }
+
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => FoodCardOpen(
                 foodName: foodName,
                 healthScore: healthScore,
-                calories: _extractNumericValue(calories),
-                protein: _extractNumericValue(protein),
-                fat: _extractNumericValue(fat),
-                carbs: _extractNumericValue(carbs),
+                calories: calories.toString(),
+                protein: protein.toString(),
+                fat: fat.toString(),
+                carbs: carbs.toString(),
+                imageBase64: highQualityImageBase64 ??
+                    base64Image, // Use high quality or fallback to compressed
               ),
             ),
           );
