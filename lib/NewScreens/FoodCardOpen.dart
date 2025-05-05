@@ -165,6 +165,198 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     // Set other nutrients data if available
     if (widget.otherNutrients != null) {
       _otherNutrients = Map<String, dynamic>.from(widget.otherNutrients!);
+      
+      // Print other nutrients data to verify it's being received
+      print("\n===== START: OTHER NUTRIENTS PASSED TO FOODCARD =====");
+      
+      print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+      print("!!!! INIT STATE OTHER NUTRIENTS CONTENT !!!!");
+      print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+      
+      print("  Fiber:         ${_otherNutrients['fiber'] ?? 0}g");
+import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import '../Features/codia/codia_page.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:math';
+import 'dart:ui';
+import 'dart:io' if (dart.library.html) 'package:fitness_app/web_io_stub.dart';
+import 'dart:async';
+import 'package:fitness_app/NewScreens/food_helper_methods.dart';
+import 'package:fitness_app/NewScreens/dialog_helper.dart';
+import 'dialog_helper.dart';
+
+// Custom scroll physics optimized for mouse wheel
+class SlowScrollPhysics extends ScrollPhysics {
+  const SlowScrollPhysics({ScrollPhysics? parent}) : super(parent: parent);
+
+  @override
+  SlowScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return SlowScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    return offset * 0.4; // Slow down by 60%
+  }
+}
+
+class FoodCardOpen extends StatefulWidget {
+  final String? foodName;
+  final String? healthScore;
+  final String? calories;
+  final String? protein;
+  final String? fat;
+  final String? carbs;
+  final String? imageBase64; // Add parameter for base64 encoded image
+  final List<Map<String, dynamic>>? ingredients; // Add ingredients parameter
+  final Map<String, dynamic>? vitamins; // Add vitamins parameter
+  final Map<String, dynamic>? minerals; // Add minerals parameter
+  final Map<String, dynamic>? otherNutrients; // Add other nutrients parameter
+
+  const FoodCardOpen({
+    super.key,
+    this.foodName,
+    this.healthScore,
+    this.calories,
+    this.protein,
+    this.fat,
+    this.carbs,
+    this.imageBase64, // Include in constructor
+    this.ingredients, // Include in constructor
+    this.vitamins, // Include in constructor
+    this.minerals, // Include in constructor
+    this.otherNutrients, // Include in constructor
+  });
+
+  @override
+  State<FoodCardOpen> createState() => _FoodCardOpenState();
+}
+
+class _FoodCardOpenState extends State<FoodCardOpen>
+    with TickerProviderStateMixin {
+  bool _isLoading = false;
+  bool _isLiked = false;
+  bool _isBookmarked = false; // Track bookmark state
+  bool _isEditMode = false; // Track if we're in edit mode for teal outlines
+  int _counter = 1; // Counter for +/- buttons
+  String _privacyStatus = 'Public'; // Default privacy status
+  bool _hasUnsavedChanges = false; // Track whether user has made changes
+  // Original values to compare for changes
+  String _originalFoodName = '';
+  String _originalHealthScore = '';
+  String _originalCalories = '';
+  String _originalProtein = '';
+  String _originalFat = '';
+  String _originalCarbs = '';
+  int _originalCounter = 1;
+
+  // Keep a backup of original ingredients for restoring if changes are discarded
+  List<Map<String, dynamic>> _originalIngredients = [];
+
+  late AnimationController _bookmarkController;
+  late Animation<double> _bookmarkScaleAnimation;
+  late AnimationController _likeController;
+  late Animation<double> _likeScaleAnimation;
+  // Initialize with default values to prevent late initialization errors
+  String _foodName = 'Delicious Meal';
+  String _healthScore = '8/10';
+  double _healthScoreValue = 0.8;
+  String _calories = '0';
+  String _protein = '0';
+  String _fat = '0';
+  String _carbs = '0';
+  Uint8List? _imageBytes; // Store decoded image bytes
+  String?
+      _storedImageBase64; // For storing retrieved image from SharedPreferences
+  List<Map<String, dynamic>> _ingredients = []; // Store ingredients list
+  Map<String, dynamic> _vitamins = {}; // Store vitamins data
+  Map<String, dynamic> _minerals = {}; // Store minerals data
+  Map<String, dynamic> _otherNutrients = {}; // Store other nutrients data
+  Map<String, bool> _isIngredientFlipped = {};
+  Set<String> _flippedCards = {}; // Track flipped cards
+  Map<String, AnimationController> _flipAnimationControllers = {};
+  Map<String, Animation<double>> _flipAnimations = {};
+
+  @override
+  void initState() {
+    super.initState();
+    print('FoodCardOpen initState called');
+
+    // Initialize with no unsaved changes
+    _hasUnsavedChanges = false;
+
+    // Initialize animation controllers
+    _initAnimationControllers();
+
+    // Set initial values from parameters if available - but don't set _originalXXX yet
+    if (widget.foodName != null && widget.foodName!.isNotEmpty) {
+      _foodName = widget.foodName!;
+      // We'll set _originalFoodName later after all data is loaded
+    }
+
+    if (widget.healthScore != null && widget.healthScore!.isNotEmpty) {
+      _healthScore = widget.healthScore!;
+      _healthScoreValue = _extractHealthScoreValue(_healthScore);
+      // We'll set _originalHealthScore later
+    }
+
+    if (widget.calories != null && widget.calories!.isNotEmpty) {
+      _calories = _formatDecimalValue(widget.calories!);
+      // We'll set _originalCalories later
+    }
+
+    if (widget.protein != null && widget.protein!.isNotEmpty) {
+      _protein = widget.protein!;
+      // We'll set _originalProtein later
+    }
+
+    if (widget.fat != null && widget.fat!.isNotEmpty) {
+      _fat = widget.fat!;
+      // We'll set _originalFat later
+    }
+
+    if (widget.carbs != null && widget.carbs!.isNotEmpty) {
+      _carbs = widget.carbs!;
+      // We'll set _originalCarbs later
+    }
+
+    // Set vitamins data if available
+    if (widget.vitamins != null) {
+      _vitamins = Map<String, dynamic>.from(widget.vitamins!);
+    }
+
+    // Set minerals data if available
+    if (widget.minerals != null) {
+      _minerals = Map<String, dynamic>.from(widget.minerals!);
+    }
+
+    // Set other nutrients data if available
+    if (widget.otherNutrients != null) {
+      _otherNutrients = Map<String, dynamic>.from(widget.otherNutrients!);
+
+      // Print other nutrients data to verify it's being received
+      print("\n===== OTHER NUTRIENTS PASSED TO FOODCARD =====");
+      print("  Fiber:         ${_otherNutrients['fiber'] ?? 0}g");
+      print("  Cholesterol:   ${_otherNutrients['cholesterol'] ?? 0}mg");
+      print("  Omega-3:       ${_otherNutrients['omega_3'] ?? 0}g");
+      print("  Omega-6:       ${_otherNutrients['omega_6'] ?? 0}g");
+      print("  Sodium:        ${_otherNutrients['sodium'] ?? 0}mg");
+      print("  Sugar:         ${_otherNutrients['sugar'] ?? 0}g");
+      print("  Saturated Fat: ${_otherNutrients['saturated_fat'] ?? 0}g");
+      print("  Raw data: $_otherNutrients");
+      print("=========================================\n");
+    } else {
+      print("\n===== NO OTHER NUTRIENTS PASSED TO FOODCARD =====");
+      print("widget.otherNutrients is null");
+      print("===============================================\n");
     }
 
     _counter = 1; // Always start at 1
@@ -479,6 +671,33 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
       // Debug print the processed ingredients
       _debugPrintIngredients('After processing widget ingredients');
+
+      // FORCE PRINT OTHER NUTRIENTS SECTION
+      print('\nOTHER NUTRIENTS:');
+      if (_otherNutrients.isNotEmpty) {
+        print('  Fiber: ${_otherNutrients['fiber'] ?? 0}g');
+        print('  Cholesterol: ${_otherNutrients['cholesterol'] ?? 0}mg');
+        print('  Omega-3: ${_otherNutrients['omega_3'] ?? 0}g');
+        print('  Omega-6: ${_otherNutrients['omega_6'] ?? 0}g');
+        print('  Sodium: ${_otherNutrients['sodium'] ?? 0}mg');
+        print('  Sugar: ${_otherNutrients['sugar'] ?? 0}g');
+        print('  Saturated Fat: ${_otherNutrients['saturated_fat'] ?? 0}g');
+      } else {
+        print('  No other nutrients data available');
+      }
+
+      // Print from widget source directly
+      if (widget.otherNutrients != null) {
+        print('\nOTHER NUTRIENTS FROM WIDGET:');
+        Map<String, dynamic> otherNuts = widget.otherNutrients!;
+        print('  Fiber: ${otherNuts['fiber'] ?? 0}g');
+        print('  Cholesterol: ${otherNuts['cholesterol'] ?? 0}mg');
+        print('  Omega-3: ${otherNuts['omega_3'] ?? 0}g');
+        print('  Omega-6: ${otherNuts['omega_6'] ?? 0}g');
+        print('  Sodium: ${otherNuts['sodium'] ?? 0}mg');
+        print('  Sugar: ${otherNuts['sugar'] ?? 0}g');
+        print('  Saturated Fat: ${otherNuts['saturated_fat'] ?? 0}g');
+      }
 
       // We've processed widget.ingredients - immediately save them to SharedPreferences
       // to make sure they persist across screens
@@ -4614,6 +4833,45 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
     print(
         'NUTRITION TOTALS: Calories=$_calories, Protein=$_protein, Fat=$_fat, Carbs=$_carbs');
+    
+    // SUPER OBVIOUS OTHER NUTRIENTS MARKER
+    print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    print("!!!! FOODCARD OTHER NUTRIENTS SECTION     !!!!");
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+         
+    // DIRECT PRINT - NO CONDITIONS - GUARANTEED OUTPUT
+    print('\nOTHER NUTRIENTS:');
+    if (_otherNutrients.isNotEmpty) {
+      print('  Fiber:         ${_otherNutrients['fiber'] ?? 0}g');
+      print('  Cholesterol:   ${_otherNutrients['cholesterol'] ?? 0}mg');
+      print('  Omega-3:       ${_otherNutrients['omega_3'] ?? 0}g');
+      print('  Omega-6:       ${_otherNutrients['omega_6'] ?? 0}g');
+      print('  Sodium:        ${_otherNutrients['sodium'] ?? 0}mg');
+      print('  Sugar:         ${_otherNutrients['sugar'] ?? 0}g');
+      print('  Saturated Fat: ${_otherNutrients['saturated_fat'] ?? 0}g');
+      
+      // ALSO PRINT AS PLAIN TEXT FOR RELIABILITY
+      print("\nRAW NUTRIENTS AS PLAIN TEXT:");
+      print("  fiber: ${_otherNutrients['fiber'] ?? 0}g");
+      print("  cholesterol: ${_otherNutrients['cholesterol'] ?? 0}mg");
+      print("  omega_3: ${_otherNutrients['omega_3'] ?? 0}g");
+      print("  omega_6: ${_otherNutrients['omega_6'] ?? 0}g");
+      print("  sodium: ${_otherNutrients['sodium'] ?? 0}mg");
+      print("  sugar: ${_otherNutrients['sugar'] ?? 0}g");
+      print("  saturated_fat: ${_otherNutrients['saturated_fat'] ?? 0}g");
+      
+      // Print raw data for debugging
+      print("\nRAW OTHER NUTRIENTS DATA (FOODCARD):");
+      print(_otherNutrients);
+    } else {
+      print('  No other nutrients data available');
+      print('  _otherNutrients is empty: $_otherNutrients');
+    }
+    
+    // SUPER OBVIOUS END MARKER
+    print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    print("!!!! END FOODCARD OTHER NUTRIENTS SECTION !!!!");
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
   }
 
   // Helper method to show API error dialog in premium style

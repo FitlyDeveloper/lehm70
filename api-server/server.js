@@ -175,13 +175,30 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       console.log('- minerals: present =', !!parsedData.minerals);
       console.log('- other_nutrients: present =', !!parsedData.other_nutrients);
       
+      // Add more detailed debugging of other_nutrients
+      console.log('\n===== DEBUGGING OTHER_NUTRIENTS =====');
       if (parsedData.other_nutrients) {
-        console.log('- other_nutrients keys:', Object.keys(parsedData.other_nutrients));
+        console.log('OTHER NUTRIENTS DATA EXISTS:');
+        
+        // Log each key-value pair in other_nutrients
+        Object.keys(parsedData.other_nutrients).forEach(key => {
+          console.log(`  ${key}: ${parsedData.other_nutrients[key]}`);
+        });
+        
+        // Specifically check for each expected field
+        console.log('\nCHECKING SPECIFIC OTHER NUTRIENT FIELDS:');
+        console.log('  Fiber:         ' + (parsedData.other_nutrients.fiber || 'not found'));
+        console.log('  Cholesterol:   ' + (parsedData.other_nutrients.cholesterol || 'not found'));
+        console.log('  Omega-3:       ' + (parsedData.other_nutrients.omega_3 || 'not found'));
+        console.log('  Omega-6:       ' + (parsedData.other_nutrients.omega_6 || 'not found'));
+        console.log('  Sodium:        ' + (parsedData.other_nutrients.sodium || 'not found'));
+        console.log('  Sugar:         ' + (parsedData.other_nutrients.sugar || 'not found'));
+        console.log('  Saturated Fat: ' + (parsedData.other_nutrients.saturated_fat || 'not found'));
       } else {
-        console.log('- other_nutrients is missing or null!');
+        console.log('OTHER NUTRIENTS DATA MISSING!');
       }
+      console.log('===================================\n');
       
-      // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
         return res.json({
           success: true,

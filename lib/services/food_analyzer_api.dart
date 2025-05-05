@@ -55,25 +55,33 @@ class FoodAnalyzerApi {
       print(
           'API response format: ${responseData['data'] is Map ? 'Map' : 'Other type'}');
       if (responseData['data'] is Map) {
-        print('Keys in data: ${(responseData['data'] as Map).keys.join(', ')}');
+        print('Keys in data: ${responseData['data'].keys.join(', ')}');
 
-        // Log additional nutritional information when available
-        final data = responseData['data'] as Map<String, dynamic>;
-
-        if (data.containsKey('vitamins')) {
+        // Check for vitamins and minerals
+        if (responseData['data'].containsKey('vitamins')) {
           print('Vitamins detected in API response');
         }
 
-        if (data.containsKey('minerals')) {
+        if (responseData['data'].containsKey('minerals')) {
           print('Minerals detected in API response');
         }
 
-        if (data.containsKey('amino_acids')) {
-          print('Amino acids detected in API response');
-        }
+        // Add direct logging of other_nutrients section
+        if (responseData['data'].containsKey('other_nutrients')) {
+          print('\n===== OTHER NUTRIENTS SECTION FROM API =====');
+          final otherNuts = responseData['data']['other_nutrients'];
 
-        if (data.containsKey('nutrition_other')) {
-          print('Other nutrition values detected in API response');
+          // Format each nutrient with proper capitalization and aligned values
+          print('  Fiber:         ${otherNuts['fiber'] ?? 0}g');
+          print('  Cholesterol:   ${otherNuts['cholesterol'] ?? 0}mg');
+          print('  Omega-3:       ${otherNuts['omega_3'] ?? 0}g');
+          print('  Omega-6:       ${otherNuts['omega_6'] ?? 0}g');
+          print('  Sodium:        ${otherNuts['sodium'] ?? 0}mg');
+          print('  Sugar:         ${otherNuts['sugar'] ?? 0}g');
+          print('  Saturated Fat: ${otherNuts['saturated_fat'] ?? 0}g');
+          print('=======================================\n');
+        } else {
+          print('WARNING: No other_nutrients found in API response!');
         }
       }
 
