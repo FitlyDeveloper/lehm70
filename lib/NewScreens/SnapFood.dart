@@ -701,10 +701,26 @@ class _SnapFoodState extends State<SnapFood> {
           });
         }
 
-        // Other nutrients 
+        // Other nutrients - extract directly from response and always display
+        print("\nOTHER NUTRIENTS:");
         Map<String, dynamic> otherNutrients = analysisData['other_nutrients'] ?? {};
+        
+        // Debug the raw data
+        print("DEBUG - RAW OTHER NUTRIENTS DATA: $otherNutrients");
+        
+        // Always show these nutrients even if other_nutrients is empty
+        final mandatoryNutrients = [
+          {'key': 'fiber', 'label': 'Fiber', 'unit': 'g'},
+          {'key': 'cholesterol', 'label': 'Cholesterol', 'unit': 'mg'},
+          {'key': 'omega_3', 'label': 'Omega-3', 'unit': 'g'},
+          {'key': 'omega_6', 'label': 'Omega-6', 'unit': 'g'},
+          {'key': 'sodium', 'label': 'Sodium', 'unit': 'mg'},
+          {'key': 'sugar', 'label': 'Sugar', 'unit': 'g'},
+          {'key': 'saturated_fat', 'label': 'Saturated Fat', 'unit': 'g'}
+        ];
+        
+        // First try to get values from other_nutrients map
         if (otherNutrients.isNotEmpty) {
-          print("\nOTHER NUTRIENTS:");
           otherNutrients.forEach((key, value) {
             // Format key for display - convert snake_case to proper case
             String displayKey = key.split('_').map((word) => 
@@ -714,38 +730,25 @@ class _SnapFoodState extends State<SnapFood> {
             String unit = _getUnitForOtherNutrient(key);
             print("  $displayKey: ${_extractDecimalValue(value.toString())}$unit");
           });
-        } else {
-          print("\nOTHER NUTRIENTS: None provided by API");
-          // Debug output
-          print("DEBUG: other_nutrients exists in response: ${analysisData.containsKey('other_nutrients')}");
-          if (analysisData.containsKey('other_nutrients')) {
-            print("DEBUG: other_nutrients type: ${analysisData['other_nutrients'].runtimeType}");
-            print("DEBUG: other_nutrients empty: ${(analysisData['other_nutrients'] as Map?)?.isEmpty ?? true}");
-          }
-        }
-
-        // Additional values that might be directly in the root
-        final additionalValues = [
-          {'key': 'fiber', 'label': 'Fiber', 'unit': 'g'},
-          {'key': 'sugar', 'label': 'Sugar', 'unit': 'g'},
-          {'key': 'sodium', 'label': 'Sodium', 'unit': 'mg'},
-          {'key': 'cholesterol', 'label': 'Cholesterol', 'unit': 'mg'},
-          {'key': 'saturated_fat', 'label': 'Saturated Fat', 'unit': 'g'},
-          {'key': 'trans_fat', 'label': 'Trans Fat', 'unit': 'g'},
-          {'key': 'potassium', 'label': 'Potassium', 'unit': 'mg'},
-          {'key': 'calcium', 'label': 'Calcium', 'unit': 'mg'},
-          {'key': 'iron', 'label': 'Iron', 'unit': 'mg'},
-        ];
-
-        bool foundAdditional = false;
-        for (var item in additionalValues) {
-          if (analysisData.containsKey(item['key'])) {
-            if (!foundAdditional) {
-              print("\nADDITIONAL VALUES:");
-              foundAdditional = true;
-            }
-            print(
-                "  ${item['label']}: ${_extractDecimalValue(analysisData[item['key']].toString())}${item['unit']}");
+        } 
+        
+        // If other_nutrients doesn't contain all expected values, check if they're in the root object
+        bool foundMissingNutrients = false;
+        for (var item in mandatoryNutrients) {
+          final String key = item['key'] as String;
+          final String label = item['label'] as String;
+          final String unit = item['unit'] as String;
+          
+          // Skip if we already displayed this from other_nutrients
+          if (otherNutrients.containsKey(key)) continue;
+          
+          // If it's in the root object, display it
+          if (analysisData.containsKey(key)) {
+            foundMissingNutrients = true;
+            print("  $label: ${_extractDecimalValue(analysisData[key].toString())}$unit");
+          } else {
+            // If it's missing completely, show as 0
+            print("  $label: 0$unit");
           }
         }
 

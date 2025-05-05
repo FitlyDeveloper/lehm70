@@ -143,6 +143,25 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
     const content = data.choices[0].message.content;
     console.log('OpenAI API response content:', content.substring(0, 100) + '...');
     
+    // Check for other_nutrients specifically
+    try {
+      const rawData = JSON.parse(content);
+      console.log('OTHER NUTRIENTS DATA CHECK:');
+      console.log('- has other_nutrients:', !!rawData.other_nutrients);
+      
+      if (rawData.other_nutrients) {
+        console.log('- other_nutrients keys:', Object.keys(rawData.other_nutrients).join(', '));
+        console.log('- other_nutrients values:');
+        Object.keys(rawData.other_nutrients).forEach(key => {
+          console.log(`  ${key}: ${rawData.other_nutrients[key]}`);
+        });
+      } else {
+        console.log('WARNING: other_nutrients is missing from OpenAI response');
+      }
+    } catch (err) {
+      console.error('Error parsing OpenAI response to check other_nutrients:', err);
+    }
+    
     // Process and parse the response
     try {
       // First try direct parsing
