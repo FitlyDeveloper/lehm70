@@ -96,14 +96,14 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for calories, protein, fat, carbs, vitamin C\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. Use decimal places and realistic estimates\n7. DO NOT respond with markdown code blocks or text explanations\n8. DO NOT prefix your response with "json" or ```\n9. ONLY RETURN A RAW JSON OBJECT\n10. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": 12.5, "fat": 5.2, "carbs": 45.7},\n    {"protein": 8.3, "fat": 3.1, "carbs": 28.3}\n  ],\n  "calories": number,\n  "protein": number,\n  "fat": number,\n  "carbs": number,\n  "vitamin_c": number,\n  "health_score": "score/10"\n}'
+            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for calories, protein, fat, carbs, vitamin C\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. CRITICAL: provide DETAILED vitamin and mineral content including vitamin A, B1, B2, B3, B6, B12, C, D, E, K, calcium, iron, magnesium, phosphorus, potassium, sodium, zinc\n7. CRITICAL: include other nutritional values like fiber, sugar, cholesterol, and saturated fat\n8. Use decimal places and realistic estimates\n9. DO NOT respond with markdown code blocks or text explanations\n10. DO NOT prefix your response with "json" or ```\n11. ONLY RETURN A RAW JSON OBJECT\n12. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\n[VITAMINS, MINERALS AND OTHER NUTRIENTS]\n- You MUST provide detailed vitamin content including vitamin A, B1, B2, B3, B6, B12, C, D, E, K\n- You MUST provide detailed mineral content including calcium, iron, magnesium, phosphorus, potassium, sodium, zinc\n- You MUST provide other nutritional values like fiber, sugar, cholesterol, and saturated fat\n- Use realistic values based on food composition databases\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": 12.5, "fat": 5.2, "carbs": 45.7},\n    {"protein": 8.3, "fat": 3.1, "carbs": 28.3}\n  ],\n  "calories": number,\n  "protein": number,\n  "fat": number,\n  "carbs": number,\n  "vitamin_c": number,\n  "health_score": "score/10",\n  "vitamins": {\n    "vitamin_a": number,\n    "vitamin_b1": number,\n    "vitamin_b2": number,\n    "vitamin_b3": number,\n    "vitamin_b6": number,\n    "vitamin_b12": number,\n    "vitamin_c": number,\n    "vitamin_d": number,\n    "vitamin_e": number,\n    "vitamin_k": number\n  },\n  "minerals": {\n    "calcium": number,\n    "iron": number,\n    "magnesium": number,\n    "phosphorus": number,\n    "potassium": number,\n    "sodium": number,\n    "zinc": number\n  },\n  "other_nutrients": {\n    "fiber": number,\n    "sugar": number,\n    "cholesterol": number,\n    "saturated_fat": number\n  }\n}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ACCURATE PROTEIN, FAT, AND CARB VALUES FOR EACH INGREDIENT:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string\n}"
+                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ACCURATE PROTEIN, FAT, AND CARB VALUES FOR EACH INGREDIENT, AS WELL AS DETAILED VITAMIN, MINERAL, AND OTHER NUTRITIONAL INFORMATION:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string,\n  \"vitamins\": object with detailed vitamin content,\n  \"minerals\": object with detailed mineral content,\n  \"other_nutrients\": object with fiber, sugar, cholesterol, saturated fat\n}"
               },
               {
                 type: 'image_url',
@@ -112,7 +112,7 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
             ]
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 1500,
         response_format: { type: 'json_object' }
       })
     });
@@ -399,7 +399,34 @@ function transformToRequiredFormat(data) {
       fat: mealItem.macronutrients?.fat || 0,
       carbs: mealItem.macronutrients?.carbohydrates || 0,
       vitamin_c: 1.5, // Default value
-      health_score: "7/10" // Default value
+      health_score: "7/10", // Default value
+      vitamins: {
+        vitamin_a: 0,
+        vitamin_b1: 0,
+        vitamin_b2: 0,
+        vitamin_b3: 0,
+        vitamin_b6: 0,
+        vitamin_b12: 0,
+        vitamin_c: 0,
+        vitamin_d: 0,
+        vitamin_e: 0,
+        vitamin_k: 0
+      },
+      minerals: {
+        calcium: 0,
+        iron: 0,
+        magnesium: 0,
+        phosphorus: 0,
+        potassium: 0,
+        sodium: 0,
+        zinc: 0
+      },
+      other_nutrients: {
+        fiber: 0,
+        sugar: 0,
+        cholesterol: 0,
+        saturated_fat: 0
+      }
     };
   }
   
@@ -421,7 +448,34 @@ function transformToRequiredFormat(data) {
     fat: 15,
     carbs: 60,
     vitamin_c: 2,
-    health_score: "6/10"
+    health_score: "6/10",
+    vitamins: {
+      vitamin_a: 0,
+      vitamin_b1: 0,
+      vitamin_b2: 0,
+      vitamin_b3: 0,
+      vitamin_b6: 0,
+      vitamin_b12: 0,
+      vitamin_c: 0,
+      vitamin_d: 0,
+      vitamin_e: 0,
+      vitamin_k: 0
+    },
+    minerals: {
+      calcium: 0,
+      iron: 0,
+      magnesium: 0,
+      phosphorus: 0,
+      potassium: 0,
+      sodium: 0,
+      zinc: 0
+    },
+    other_nutrients: {
+      fiber: 0,
+      sugar: 0,
+      cholesterol: 0,
+      saturated_fat: 0
+    }
   };
 }
 
@@ -659,7 +713,34 @@ function transformTextToRequiredFormat(text) {
       fat: fat || 10,
       carbs: carbs || 20,
       vitamin_c: vitaminC || 2,
-      health_score: `${healthScore}/10`
+      health_score: `${healthScore}/10`,
+      vitamins: {
+        vitamin_a: 0,
+        vitamin_b1: 0,
+        vitamin_b2: 0,
+        vitamin_b3: 0,
+        vitamin_b6: 0,
+        vitamin_b12: 0,
+        vitamin_c: 0,
+        vitamin_d: 0,
+        vitamin_e: 0,
+        vitamin_k: 0
+      },
+      minerals: {
+        calcium: 0,
+        iron: 0,
+        magnesium: 0,
+        phosphorus: 0,
+        potassium: 0,
+        sodium: 0,
+        zinc: 0
+      },
+      other_nutrients: {
+        fiber: 0,
+        sugar: 0,
+        cholesterol: 0,
+        saturated_fat: 0
+      }
     };
   }
   
@@ -681,7 +762,34 @@ function transformTextToRequiredFormat(text) {
     fat: 15,
     carbs: 60,
     vitamin_c: 2,
-    health_score: "6/10"
+    health_score: "6/10",
+    vitamins: {
+      vitamin_a: 0,
+      vitamin_b1: 0,
+      vitamin_b2: 0,
+      vitamin_b3: 0,
+      vitamin_b6: 0,
+      vitamin_b12: 0,
+      vitamin_c: 0,
+      vitamin_d: 0,
+      vitamin_e: 0,
+      vitamin_k: 0
+    },
+    minerals: {
+      calcium: 0,
+      iron: 0,
+      magnesium: 0,
+      phosphorus: 0,
+      potassium: 0,
+      sodium: 0,
+      zinc: 0
+    },
+    other_nutrients: {
+      fiber: 0,
+      sugar: 0,
+      cholesterol: 0,
+      saturated_fat: 0
+    }
   };
 }
 
