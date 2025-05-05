@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: snap-food
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: OPENAI_API_KEY
+        sync: false\n      - key: NODE_ENV\n        value: production
+    domains:
+      - snap-food.onrender.com
+      - deepseek-uhrc.onrender.com 
+
+
