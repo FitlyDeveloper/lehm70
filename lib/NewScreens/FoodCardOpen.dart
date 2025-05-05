@@ -41,6 +41,9 @@ class FoodCardOpen extends StatefulWidget {
   final String? carbs;
   final String? imageBase64; // Add parameter for base64 encoded image
   final List<Map<String, dynamic>>? ingredients; // Add ingredients parameter
+  final Map<String, dynamic>? vitamins; // Add vitamins parameter
+  final Map<String, dynamic>? minerals; // Add minerals parameter
+  final Map<String, dynamic>? otherNutrients; // Add other nutrients parameter
 
   const FoodCardOpen({
     super.key,
@@ -52,6 +55,9 @@ class FoodCardOpen extends StatefulWidget {
     this.carbs,
     this.imageBase64, // Include in constructor
     this.ingredients, // Include in constructor
+    this.vitamins, // Include in constructor
+    this.minerals, // Include in constructor
+    this.otherNutrients, // Include in constructor
   });
 
   @override
@@ -95,6 +101,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   String?
       _storedImageBase64; // For storing retrieved image from SharedPreferences
   List<Map<String, dynamic>> _ingredients = []; // Store ingredients list
+  Map<String, dynamic> _vitamins = {}; // Store vitamins data
+  Map<String, dynamic> _minerals = {}; // Store minerals data
+  Map<String, dynamic> _otherNutrients = {}; // Store other nutrients data
   Map<String, bool> _isIngredientFlipped = {};
   Set<String> _flippedCards = {}; // Track flipped cards
   Map<String, AnimationController> _flipAnimationControllers = {};
@@ -141,6 +150,21 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     if (widget.carbs != null && widget.carbs!.isNotEmpty) {
       _carbs = widget.carbs!;
       // We'll set _originalCarbs later
+    }
+
+    // Set vitamins data if available
+    if (widget.vitamins != null) {
+      _vitamins = Map<String, dynamic>.from(widget.vitamins!);
+    }
+
+    // Set minerals data if available
+    if (widget.minerals != null) {
+      _minerals = Map<String, dynamic>.from(widget.minerals!);
+    }
+
+    // Set other nutrients data if available
+    if (widget.otherNutrients != null) {
+      _otherNutrients = Map<String, dynamic>.from(widget.otherNutrients!);
     }
 
     _counter = 1; // Always start at 1
@@ -1702,26 +1726,36 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   double _estimateCaloriesForFood(String foodName, String servingSize) {
     double baseCalories = 100.0; // Default base calories
     double servingSizeMultiplier = 1.0;
-    
+
     // Adjust for serving size if numerical values are present
     RegExp numericRegex = RegExp(r'(\d+(?:\.\d+)?)');
     var numericMatches = numericRegex.allMatches(servingSize);
-    
+
     if (numericMatches.isNotEmpty) {
       try {
-        double? sizeValue = double.tryParse(numericMatches.first.group(0) ?? '1');
+        double? sizeValue =
+            double.tryParse(numericMatches.first.group(0) ?? '1');
         if (sizeValue != null) {
           // Adjust serving size multiplier based on common units
           if (servingSize.contains('cup') || servingSize.contains('cups')) {
-            servingSizeMultiplier = sizeValue * 2.0; // 1 cup is about 200 calories for many foods
-          } else if (servingSize.contains('tbsp') || servingSize.contains('tablespoon')) {
-            servingSizeMultiplier = sizeValue * 0.3; // 1 tbsp is about 30 calories
-          } else if (servingSize.contains('tsp') || servingSize.contains('teaspoon')) {
-            servingSizeMultiplier = sizeValue * 0.1; // 1 tsp is about 10 calories
-          } else if (servingSize.contains('oz') || servingSize.contains('ounce')) {
-            servingSizeMultiplier = sizeValue * 0.7; // 1 oz is about 70 calories
-          } else if (servingSize.contains('g') || servingSize.contains('gram')) {
-            servingSizeMultiplier = sizeValue * 0.01; // 1g is about 1 calorie for many foods
+            servingSizeMultiplier =
+                sizeValue * 2.0; // 1 cup is about 200 calories for many foods
+          } else if (servingSize.contains('tbsp') ||
+              servingSize.contains('tablespoon')) {
+            servingSizeMultiplier =
+                sizeValue * 0.3; // 1 tbsp is about 30 calories
+          } else if (servingSize.contains('tsp') ||
+              servingSize.contains('teaspoon')) {
+            servingSizeMultiplier =
+                sizeValue * 0.1; // 1 tsp is about 10 calories
+          } else if (servingSize.contains('oz') ||
+              servingSize.contains('ounce')) {
+            servingSizeMultiplier =
+                sizeValue * 0.7; // 1 oz is about 70 calories
+          } else if (servingSize.contains('g') ||
+              servingSize.contains('gram')) {
+            servingSizeMultiplier =
+                sizeValue * 0.01; // 1g is about 1 calorie for many foods
           } else {
             // General multiplier for other units
             servingSizeMultiplier = sizeValue;
@@ -1732,36 +1766,36 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         print('Could not parse serving size: $servingSize');
       }
     }
-    
+
     // Adjust base calories based on food type
     String lowercaseName = foodName.toLowerCase();
 
     // High-calorie foods
-    if (lowercaseName.contains('cake') || 
-        lowercaseName.contains('pizza') || 
-        lowercaseName.contains('burger') || 
-        lowercaseName.contains('fries') || 
-        lowercaseName.contains('chocolate') || 
+    if (lowercaseName.contains('cake') ||
+        lowercaseName.contains('pizza') ||
+        lowercaseName.contains('burger') ||
+        lowercaseName.contains('fries') ||
+        lowercaseName.contains('chocolate') ||
         lowercaseName.contains('ice cream')) {
       baseCalories = 300.0;
     }
     // Medium-calorie foods
-    else if (lowercaseName.contains('meat') || 
-             lowercaseName.contains('chicken') || 
+    else if (lowercaseName.contains('meat') ||
+        lowercaseName.contains('chicken') ||
         lowercaseName.contains('fish') ||
         lowercaseName.contains('pasta') ||
-             lowercaseName.contains('rice') || 
-             lowercaseName.contains('bread')) {
+        lowercaseName.contains('rice') ||
+        lowercaseName.contains('bread')) {
       baseCalories = 200.0;
     }
     // Low-calorie foods
-    else if (lowercaseName.contains('vegetable') || 
-             lowercaseName.contains('fruit') || 
-             lowercaseName.contains('salad') || 
-             lowercaseName.contains('soup')) {
+    else if (lowercaseName.contains('vegetable') ||
+        lowercaseName.contains('fruit') ||
+        lowercaseName.contains('salad') ||
+        lowercaseName.contains('soup')) {
       baseCalories = 80.0;
     }
-    
+
     return baseCalories * servingSizeMultiplier;
   }
 
@@ -1863,13 +1897,13 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         nutrition = responseData;
       }
 
-        // Check if the model identified this as an invalid food or serving size
-        if (nutrition.containsKey('invalid_food') &&
-            nutrition['invalid_food'] == true) {
-          print(
-              'FOOD ANALYZER: Invalid food name or serving size detected: $foodName ($servingSize)');
-          return {'invalid_food': true};
-        }
+      // Check if the model identified this as an invalid food or serving size
+      if (nutrition.containsKey('invalid_food') &&
+          nutrition['invalid_food'] == true) {
+        print(
+            'FOOD ANALYZER: Invalid food name or serving size detected: $foodName ($servingSize)');
+        return {'invalid_food': true};
+      }
 
       return {
         'calories':
@@ -2102,7 +2136,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         'operation_type': 'NUTRITION_CALCULATION'
       };
 
-      print('NUTRITION CALCULATOR: Creating request to Render.com DeepSeek service');
+      print(
+          'NUTRITION CALCULATOR: Creating request to Render.com DeepSeek service');
       print('NUTRITION CALCULATOR: Request data: ${jsonEncode(requestData)}');
 
       // Use the same endpoint as Fix with AI
@@ -2123,13 +2158,15 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         throw error;
       });
 
-      print('NUTRITION CALCULATOR: Received Render.com service response with status: ${response.statusCode}');
+      print(
+          'NUTRITION CALCULATOR: Received Render.com service response with status: ${response.statusCode}');
 
       // Safely dismiss the loading dialog if it's showing
       _safelyDismissDialog(dialogContext, isDialogShowing);
 
       if (response.statusCode != 200) {
-        throw Exception('Service error: ${response.statusCode}, ${response.body}');
+        throw Exception(
+            'Service error: ${response.statusCode}, ${response.body}');
       }
 
       // Parse the response
@@ -2137,51 +2174,60 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       print('NUTRITION CALCULATOR: Response data: $responseData');
 
       // Check for success and data
-      if (responseData.containsKey('success') && responseData['success'] == true) {
+      if (responseData.containsKey('success') &&
+          responseData['success'] == true) {
         // Extract nutrition data
         Map<String, dynamic> nutritionData = {};
-        
+
         if (responseData.containsKey('data')) {
           nutritionData = responseData['data'];
         } else {
           nutritionData = responseData;
         }
-        
-      print('NUTRITION CALCULATOR: Parsed nutrition data: $nutritionData');
 
-      // Check if the model identified this as an invalid food or serving size
-      if (nutritionData.containsKey('invalid_food') &&
-          nutritionData['invalid_food'] == true) {
-          print('NUTRITION CALCULATOR: Invalid food name or serving size detected: $foodName ($servingSize)');
+        print('NUTRITION CALCULATOR: Parsed nutrition data: $nutritionData');
+
+        // Check if the model identified this as an invalid food or serving size
+        if (nutritionData.containsKey('invalid_food') &&
+            nutritionData['invalid_food'] == true) {
+          print(
+              'NUTRITION CALCULATOR: Invalid food name or serving size detected: $foodName ($servingSize)');
 
           // Show the invalid ingredient dialog
-        if (mounted) {
+          if (mounted) {
             _showStandardDialog(
               title: "Invalid Food Item",
-              message: "Sorry, the food name or serving size you entered is not recognized. Please try a more specific name or common serving size.",
+              message:
+                  "Sorry, the food name or serving size you entered is not recognized. Please try a more specific name or common serving size.",
               positiveButtonText: "OK",
               positiveButtonColor: Colors.black,
               negativeButtonText: "OK",
             );
+          }
+
+          return {'invalid_food': true};
         }
 
-        return {'invalid_food': true};
-      }
+        // Return standardized nutrition values with fallbacks
+        final result = {
+          'calories': _extractNumericValue(
+              nutritionData, ['calories', 'kcal', 'energy']),
+          'protein':
+              _extractNumericValue(nutritionData, ['protein', 'proteins']),
+          'carbs':
+              _extractNumericValue(nutritionData, ['carbs', 'carbohydrates']),
+          'fat':
+              _extractNumericValue(nutritionData, ['fat', 'fats', 'total_fat']),
+        };
 
-      // Return standardized nutrition values with fallbacks
-      final result = {
-          'calories': _extractNumericValue(nutritionData, ['calories', 'kcal', 'energy']),
-        'protein': _extractNumericValue(nutritionData, ['protein', 'proteins']),
-          'carbs': _extractNumericValue(nutritionData, ['carbs', 'carbohydrates']),
-          'fat': _extractNumericValue(nutritionData, ['fat', 'fats', 'total_fat']),
-      };
-
-      print('COMPLETED nutrition calculation: $result');
-      return result;
+        print('COMPLETED nutrition calculation: $result');
+        return result;
       } else {
         // Handle error in response
-        print('NUTRITION CALCULATOR: Error in response: ${responseData['error'] ?? "Unknown error"}');
-        throw Exception('Service error: ${responseData['error'] ?? "Unknown error"}');
+        print(
+            'NUTRITION CALCULATOR: Error in response: ${responseData['error'] ?? "Unknown error"}');
+        throw Exception(
+            'Service error: ${responseData['error'] ?? "Unknown error"}');
       }
     } catch (e) {
       print('CRITICAL ERROR calculating nutrition: $e');
@@ -2193,7 +2239,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       if (mounted) {
         _showStandardDialog(
           title: "Calculation Error",
-          message: "We couldn't calculate the nutrition for this ingredient. Using estimated values instead.",
+          message:
+              "We couldn't calculate the nutrition for this ingredient. Using estimated values instead.",
           positiveButtonText: "OK",
           positiveButtonColor: Colors.black,
           // Only use one button to avoid confusion
@@ -2202,7 +2249,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       }
 
       // Use fallback estimation for nutrition values
-      double estimatedCalories = _estimateCaloriesForFood(foodName, servingSize);
+      double estimatedCalories =
+          _estimateCaloriesForFood(foodName, servingSize);
 
       // Estimate macros based on food type
       double estimatedProtein = 0.0;
@@ -2214,9 +2262,11 @@ class _FoodCardOpenState extends State<FoodCardOpen>
           foodName.toLowerCase().contains('chicken') ||
           foodName.toLowerCase().contains('fish')) {
         // High protein foods
-        estimatedProtein = estimatedCalories * 0.4 / 4; // 40% of calories from protein
+        estimatedProtein =
+            estimatedCalories * 0.4 / 4; // 40% of calories from protein
         estimatedFat = estimatedCalories * 0.4 / 9; // 40% of calories from fat
-        estimatedCarbs = estimatedCalories * 0.2 / 4; // 20% of calories from carbs
+        estimatedCarbs =
+            estimatedCalories * 0.2 / 4; // 20% of calories from carbs
       } else if (foodName.toLowerCase().contains('salad') ||
           foodName.toLowerCase().contains('vegetable')) {
         // Vegetable-based foods
@@ -3046,7 +3096,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     if (displayAmount.length > 16) {
       displayAmount = displayAmount.substring(0, 13) + "...";
     }
-    
+
     // Also format calories to ensure it fits on one line
     String displayCalories = calories;
     if (displayCalories.length > 16) {
@@ -3910,7 +3960,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   BuildContext? loadingDialogContext;
                   showDialog(
                     context: context,
-                    barrierColor: Colors.black.withOpacity(0.3), // Consistent light opacity
+                    barrierColor: Colors.black
+                        .withOpacity(0.3), // Consistent light opacity
                     barrierDismissible: false,
                     builder: (BuildContext ctx) {
                       loadingDialogContext = ctx;
@@ -3953,7 +4004,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
                   // Call the nutrition calculation API
                   print('INGREDIENT ADD: Calling _calculateNutritionWithAI');
-                  final nutritionData = await _calculateNutritionWithAI(foodName, size);
+                  final nutritionData =
+                      await _calculateNutritionWithAI(foodName, size);
 
                   // Close loading dialog safely using the stored context
                   if (loadingDialogContext != null && mounted) {
@@ -3964,7 +4016,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                     }
                   }
 
-                  print('INGREDIENT ADD: Received nutritionData: $nutritionData');
+                  print(
+                      'INGREDIENT ADD: Received nutritionData: $nutritionData');
 
                   // Check if this was flagged as an invalid food by the API
                   if (nutritionData.containsKey('invalid_food') &&
@@ -3975,7 +4028,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   }
 
                   // Extract values with more careful parsing
-                  calories = double.tryParse(nutritionData['calories'].toString()) ?? 0.0;
+                  calories =
+                      double.tryParse(nutritionData['calories'].toString()) ??
+                          0.0;
                   protein = (nutritionData['protein'] ?? 0.0).toString();
                   fat = (nutritionData['fat'] ?? 0.0).toString();
                   carbs = (nutritionData['carbs'] ?? 0.0).toString();
@@ -3995,34 +4050,37 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
                   // Update main nutritional values - still on FoodCardOpen screen
                   if (mounted) {
-                    print('INGREDIENT ADD: Widget is still mounted, updating state');
-                    
-                      // Create new ingredient with calculated calories
-                      Map<String, dynamic> newIngredient = {
-                        'name': _truncateWithEllipsis(foodName, 16),
-                        'amount': size,
-                        'calories': calories,
-                        'protein': protein,
-                        'fat': fat,
-                        'carbs': carbs
-                      };
+                    print(
+                        'INGREDIENT ADD: Widget is still mounted, updating state');
+
+                    // Create new ingredient with calculated calories
+                    Map<String, dynamic> newIngredient = {
+                      'name': _truncateWithEllipsis(foodName, 16),
+                      'amount': size,
+                      'calories': calories,
+                      'protein': protein,
+                      'fat': fat,
+                      'carbs': carbs
+                    };
 
                     // Make sure we're using the addIngredientToList method that handles truncation
                     _addIngredientToList(newIngredient);
-                    
-                    print('INGREDIENT ADD: Successfully added ingredient, waiting for save');
+
+                    print(
+                        'INGREDIENT ADD: Successfully added ingredient, waiting for save');
                   }
                 } catch (e) {
                   print('CRITICAL ERROR in handleSubmit: $e');
                   if (mounted) {
                     print('INGREDIENT ADD: Showing error alert');
-                    
+
                     // Create the ingredient with estimated values
-                    double estimatedCalories = _estimateCaloriesForFood(foodName, size);
+                    double estimatedCalories =
+                        _estimateCaloriesForFood(foodName, size);
                     double estimatedProtein = estimatedCalories * 0.25 / 4;
                     double estimatedFat = estimatedCalories * 0.3 / 9;
                     double estimatedCarbs = estimatedCalories * 0.45 / 4;
-                    
+
                     // Add the ingredient with estimated values
                     setState(() {
                       Map<String, dynamic> newIngredient = {
@@ -4033,18 +4091,20 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                         'fat': estimatedFat.toStringAsFixed(1),
                         'carbs': estimatedCarbs.toStringAsFixed(1)
                       };
-                      
+
                       // Use our dedicated method to add the ingredient
                       _addIngredientToList(newIngredient);
                     });
-                    
+
                     // Show error dialog after adding the ingredient
                     _showStandardDialog(
                       title: 'Calculation Error',
-                      message: 'We couldn\'t calculate the nutrition for this ingredient. Using estimated values instead.',
+                      message:
+                          'We couldn\'t calculate the nutrition for this ingredient. Using estimated values instead.',
                       positiveButtonText: 'OK',
                       positiveButtonColor: Colors.black,
-                      negativeButtonText: 'OK', // Use same text to show only one button
+                      negativeButtonText:
+                          'OK', // Use same text to show only one button
                     );
                   }
                 }
@@ -4075,22 +4135,24 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                       'INGREDIENT ADD: Calculated macros - protein=$protein, fat=$fat, carbs=$carbs');
 
                   if (mounted) {
-                    print('INGREDIENT ADD: Widget is still mounted, updating state with manual calories');
-                    
-                      // Create new ingredient with user-provided calories
-                      Map<String, dynamic> newIngredient = {
-                        'name': foodName,
-                        'amount': size,
-                        'calories': calories,
-                        'protein': protein,
-                        'fat': fat,
-                        'carbs': carbs
-                      };
+                    print(
+                        'INGREDIENT ADD: Widget is still mounted, updating state with manual calories');
+
+                    // Create new ingredient with user-provided calories
+                    Map<String, dynamic> newIngredient = {
+                      'name': foodName,
+                      'amount': size,
+                      'calories': calories,
+                      'protein': protein,
+                      'fat': fat,
+                      'carbs': carbs
+                    };
 
                     // Use our dedicated method to add the ingredient
                     _addIngredientToList(newIngredient);
-                    
-                    print('INGREDIENT ADD: Added ingredient with provided calories, changes marked as unsaved');
+
+                    print(
+                        'INGREDIENT ADD: Added ingredient with provided calories, changes marked as unsaved');
                   }
                 } catch (e) {
                   print('ERROR handling manual calories: $e');
@@ -4374,7 +4436,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
                       // Close button
                       Positioned(
-                        top: 23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
+                        top:
+                            23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
                         right: 20,
                         child: GestureDetector(
                           onTap: () {
@@ -4402,24 +4465,24 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   void _addIngredientToList(Map<String, dynamic> newIngredient) {
     try {
       final name = newIngredient['name'] ?? '';
-      
+
       if (name == null || name.trim().isEmpty) {
         print('INGREDIENT ADD: Skipping ingredient with empty name');
         return;
       }
-      
+
       // Always truncate ingredient name to 16 characters if needed
       if (name.length > 16) {
         newIngredient['name'] = _truncateWithEllipsis(name, 16);
       }
-      
+
       print('INGREDIENT ADD: Adding new ingredient: $newIngredient');
-      
+
       // Add the ingredient
       setState(() {
         _ingredients.add(newIngredient);
         _hasUnsavedChanges = true; // Mark as having unsaved changes
-        
+
         // Sort ingredients by calories (highest to lowest)
         _ingredients.sort((a, b) {
           final caloriesA = a.containsKey('calories')
@@ -4431,13 +4494,14 @@ class _FoodCardOpenState extends State<FoodCardOpen>
           return caloriesB.compareTo(caloriesA);
         });
       });
-      
+
       // Debug the updated ingredients list after addition
       print('INGREDIENTS LIST AFTER ADDITION:');
       for (int i = 0; i < _ingredients.length; i++) {
-        print('[${i+1}] ${_ingredients[i]['name']} - ${_ingredients[i]['amount']} - ${_ingredients[i]['calories']} kcal');
+        print(
+            '[${i + 1}] ${_ingredients[i]['name']} - ${_ingredients[i]['amount']} - ${_ingredients[i]['calories']} kcal');
       }
-      
+
       // Calculate total nutrition from all ingredients
       _calculateTotalNutrition();
     } catch (e) {
@@ -4557,7 +4621,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   void _showApiErrorDialog() {
     _showStandardDialog(
       title: "Service Unavailable",
-      message: "The food modification service is currently unavailable. Please try again later.",
+      message:
+          "The food modification service is currently unavailable. Please try again later.",
       positiveButtonText: "OK",
       positiveButtonColor: Colors.black,
       negativeButtonText: "OK",
@@ -4568,13 +4633,15 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   void _showUnclearInputDialog() {
     _showStandardDialog(
       title: "Invalid Ingredient",
-      message: "Please enter a valid food name and serving size that we can calculate nutrition for",
+      message:
+          "Please enter a valid food name and serving size that we can calculate nutrition for",
       positiveButtonText: "Try Again",
       positiveButtonColor: Colors.black,
-      positiveButtonIcon: 'assets/images/edit.png', // Make sure this asset exists
+      positiveButtonIcon:
+          'assets/images/edit.png', // Make sure this asset exists
       onPositivePressed: () {
-                                Navigator.of(context).pop();
-                                _showAddIngredientDialog();
+        Navigator.of(context).pop();
+        _showAddIngredientDialog();
       },
     );
   }
@@ -4700,7 +4767,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
                   // Close button
                   Positioned(
-                    top: 23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
+                    top:
+                        23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
                     right: 20,
                     child: GestureDetector(
                       onTap: () {
@@ -6116,43 +6184,46 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                 }
 
                 // Process the AI's response to update the food
-              // Debug print entire response
+                // Debug print entire response
                 print('AI RESPONSE DATA: ${result.toString()}');
 
                 // Handle any potentially capitalized keys
                 Map<String, dynamic> normalizedData = Map.from(result);
 
-              // Check for capitalized field names and normalize them
-              if (normalizedData.containsKey('Ingredients') &&
-                  !normalizedData.containsKey('ingredients')) {
-                  print('HANDLER: Found capitalized "Ingredients" key, normalizing');
-                  normalizedData['ingredients'] = normalizedData.remove('Ingredients');
-              }
+                // Check for capitalized field names and normalize them
+                if (normalizedData.containsKey('Ingredients') &&
+                    !normalizedData.containsKey('ingredients')) {
+                  print(
+                      'HANDLER: Found capitalized "Ingredients" key, normalizing');
+                  normalizedData['ingredients'] =
+                      normalizedData.remove('Ingredients');
+                }
 
-              if (normalizedData.containsKey('Name') &&
-                  !normalizedData.containsKey('name')) {
-                normalizedData['name'] = normalizedData.remove('Name');
-              }
+                if (normalizedData.containsKey('Name') &&
+                    !normalizedData.containsKey('name')) {
+                  normalizedData['name'] = normalizedData.remove('Name');
+                }
 
-              if (normalizedData.containsKey('Calories') &&
-                  !normalizedData.containsKey('calories')) {
-                normalizedData['calories'] = normalizedData.remove('Calories');
-              }
+                if (normalizedData.containsKey('Calories') &&
+                    !normalizedData.containsKey('calories')) {
+                  normalizedData['calories'] =
+                      normalizedData.remove('Calories');
+                }
 
-              if (normalizedData.containsKey('Protein') &&
-                  !normalizedData.containsKey('protein')) {
-                normalizedData['protein'] = normalizedData.remove('Protein');
-              }
+                if (normalizedData.containsKey('Protein') &&
+                    !normalizedData.containsKey('protein')) {
+                  normalizedData['protein'] = normalizedData.remove('Protein');
+                }
 
-              if (normalizedData.containsKey('Fat') &&
-                  !normalizedData.containsKey('fat')) {
-                normalizedData['fat'] = normalizedData.remove('Fat');
-              }
+                if (normalizedData.containsKey('Fat') &&
+                    !normalizedData.containsKey('fat')) {
+                  normalizedData['fat'] = normalizedData.remove('Fat');
+                }
 
-              if (normalizedData.containsKey('Carbs') &&
-                  !normalizedData.containsKey('carbs')) {
-                normalizedData['carbs'] = normalizedData.remove('Carbs');
-              }
+                if (normalizedData.containsKey('Carbs') &&
+                    !normalizedData.containsKey('carbs')) {
+                  normalizedData['carbs'] = normalizedData.remove('Carbs');
+                }
 
                 // Update the state with the new values
                 setState(() {
@@ -6180,27 +6251,30 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   // Update ingredients if provided
                   List<String> removedIngredients = [];
                   List<String> addedIngredients = [];
-                  
+
                   if (normalizedData.containsKey('ingredients') &&
                       normalizedData['ingredients'] is List) {
-                    
                     // Check if the instruction involves removing ingredients
-                    bool isRemovalInstruction = description.toLowerCase().contains("didnt have") || 
-                                               description.toLowerCase().contains("did not have") ||
-                                               description.toLowerCase().contains("doesn't have") ||
-                                               description.toLowerCase().contains("does not have");
-                    
+                    bool isRemovalInstruction = description
+                            .toLowerCase()
+                            .contains("didnt have") ||
+                        description.toLowerCase().contains("did not have") ||
+                        description.toLowerCase().contains("doesn't have") ||
+                        description.toLowerCase().contains("does not have");
+
                     // For removal instructions, identify which ingredients are being removed
                     if (isRemovalInstruction) {
                       // Find which ingredients were removed by comparing with original list
                       List<String> originalIngredientNames = _ingredients
                           .map((ing) => ing['name'].toString().toLowerCase())
                           .toList();
-                      
-                      List<String> newIngredientNames = (normalizedData['ingredients'] as List)
-                          .map((ing) => ing['name'].toString().toLowerCase())
-                          .toList();
-                      
+
+                      List<String> newIngredientNames =
+                          (normalizedData['ingredients'] as List)
+                              .map(
+                                  (ing) => ing['name'].toString().toLowerCase())
+                              .toList();
+
                       // Create a list of removed ingredients for logging
                       for (String origName in originalIngredientNames) {
                         if (!newIngredientNames.contains(origName)) {
@@ -6208,24 +6282,27 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                         }
                       }
                     }
-                    
+
                     // Update the ingredient list
                     List<Map<String, dynamic>> newIngredients = [];
                     for (var ingredient in normalizedData['ingredients']) {
                       String ingredientName = ingredient['name'] ?? '';
-                      
+
                       // Skip empty ingredients or those with zero calories
-                      if (_isEmpty(ingredientName) || 
-                          ((ingredient['calories'] ?? 0) == 0 && isRemovalInstruction)) {
-                        print('SKIPPING INGREDIENT: $ingredientName - zero calories or empty name');
+                      if (_isEmpty(ingredientName) ||
+                          ((ingredient['calories'] ?? 0) == 0 &&
+                              isRemovalInstruction)) {
+                        print(
+                            'SKIPPING INGREDIENT: $ingredientName - zero calories or empty name');
                         continue;
                       }
-                      
+
                       // Truncate ingredient name if longer than 16 characters
                       if (ingredientName.length > 16) {
-                        ingredientName = _truncateWithEllipsis(ingredientName, 16);
+                        ingredientName =
+                            _truncateWithEllipsis(ingredientName, 16);
                       }
-                      
+
                       Map<String, dynamic> cleanedIngredient = {
                         'name': ingredientName,
                         'amount': ingredient['amount'] ?? '1 serving',
@@ -6234,10 +6311,10 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                         'fat': ingredient['fat'] ?? 0,
                         'carbs': ingredient['carbs'] ?? 0,
                       };
-                      
+
                       newIngredients.add(cleanedIngredient);
                     }
-                    
+
                     _ingredients = newIngredients;
                   }
 
@@ -6245,7 +6322,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   _calculateTotalNutrition();
                   // Mark as having unsaved changes
                   _hasUnsavedChanges = true;
-                  
+
                   // Show success message with details on what was changed
                   String changes = "";
                   if (removedIngredients.isNotEmpty) {
@@ -6253,7 +6330,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   } else if (addedIngredients.isNotEmpty) {
                     changes = "Added: ${addedIngredients.join(', ')}.";
                   }
-                  
+
                   print("Food successfully modified with AI: $_foodName");
                   print("Changes: $changes");
                 });
@@ -6581,11 +6658,11 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         final response = await http
             .post(
           Uri.parse('https://deepseek-uhrc.onrender.com/api/nutrition'),
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode(requestData),
-            )
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(requestData),
+        )
             .timeout(const Duration(seconds: 30), onTimeout: () {
           print('FOOD FIXER: Request timed out');
           // Safely show error dialog on timeout without navigating away
@@ -6604,7 +6681,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                     ),
                     child: Container(
                       width: 311,
-                      padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 32, horizontal: 24),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -6703,7 +6781,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                       ),
                       child: Container(
                         width: 311,
-                        padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 32, horizontal: 24),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -6761,7 +6840,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
             });
           }
         } else {
-        print(
+          print(
               'FOOD FIXER: HTTP error: ${response.statusCode}, ${response.body}');
 
           // Safely show error dialog without navigating away
@@ -6850,7 +6929,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     });
 
     // Log for debugging
-    print('NUTRITION TOTALS: Calories=$_calories, Protein=$_protein, Fat=$_fat, Carbs=$_carbs');
+    print(
+        'NUTRITION TOTALS: Calories=$_calories, Protein=$_protein, Fat=$_fat, Carbs=$_carbs');
   }
 
   // Helper method to parse nutrition values which might be strings, ints, or doubles
@@ -6913,7 +6993,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
             // Only keep cards with a different name
             if (cardName.toLowerCase() != _foodName.toLowerCase()) {
               updatedCardsList.add(cardJson);
-      } else {
+            } else {
               print('Removing card: $cardName from food_cards list');
             }
           } catch (e) {
@@ -6964,11 +7044,11 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   bool _isEmpty(String? str) {
     return str == null || str.trim().isEmpty;
   }
-  
+
   // Method to check if an ingredient exists by name
   bool _hasIngredientWithName(String name) {
     if (_isEmpty(name)) return false;
-    
+
     final normalizedName = name.trim().toLowerCase();
     for (var ingredient in _ingredients) {
       if (ingredient['name'].toString().toLowerCase() == normalizedName) {
@@ -6987,4 +7067,3 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     }
   }
 }
-

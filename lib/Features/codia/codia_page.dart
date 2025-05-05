@@ -845,24 +845,24 @@ class _CodiaPageState extends State<CodiaPage> {
           final List<String> updatedCards =
               cards.map((card) => jsonEncode(card)).toList();
           await prefs.setStringList('food_cards', updatedCards);
-      }
-
-      // Sort by timestamp (most recent first)
-      cards.sort(
-          (a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
-
-      // Update streak count if we have food cards
-      setState(() {
-        _foodCards = cards;
-        _isLoadingFoodCards = false;
-        
-        // Update streak count if we have food cards
-        if (cards.isNotEmpty) {
-          streakCount = 1; // Set streak to 1 if any food images are uploaded
         }
-      });
 
-      print("Loaded ${cards.length} food cards");
+        // Sort by timestamp (most recent first)
+        cards.sort(
+            (a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
+
+        // Update streak count if we have food cards
+        setState(() {
+          _foodCards = cards;
+          _isLoadingFoodCards = false;
+
+          // Update streak count if we have food cards
+          if (cards.isNotEmpty) {
+            streakCount = 1; // Set streak to 1 if any food images are uploaded
+          }
+        });
+
+        print("Loaded ${cards.length} food cards");
       }
     } catch (e) {
       print("Error loading food cards: $e");
@@ -1052,9 +1052,9 @@ class _CodiaPageState extends State<CodiaPage> {
             'amount': amount,
             'calories': calories,
           });
-      } catch (e) {
+        } catch (e) {
           print("Skipping invalid ingredient: $e");
-      }
+        }
       }
     }
 
@@ -1074,6 +1074,9 @@ class _CodiaPageState extends State<CodiaPage> {
                 imageBase64: base64Image,
                 ingredients: processedIngredients,
                 healthScore: foodCard['health_score'] ?? '8/10',
+                vitamins: foodCard['vitamins'],
+                minerals: foodCard['minerals'],
+                otherNutrients: foodCard['other_nutrients'],
               ),
             ),
           );
@@ -1265,365 +1268,367 @@ class _CodiaPageState extends State<CodiaPage> {
       backgroundColor:
           Color(0xFFF5F5F5), // Light background color to match the app's theme
       body: Stack(
-      children: [
-        // Background and scrollable content
-        Container(
+        children: [
+          // Background and scrollable content
+          Container(
             // Ensure the container fills the entire screen
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.height,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/images/background4.jpg'),
-              fit: BoxFit.cover,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/background4.jpg'),
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          child: SingleChildScrollView(
+            child: SingleChildScrollView(
               // Ensure the scrollable content fills the available space
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Add padding for status bar
-                SizedBox(height: statusBarHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Add padding for status bar
+                  SizedBox(height: statusBarHeight),
 
-                // Header with Fitly title and icons
-                Padding(
+                  // Header with Fitly title and icons
+                  Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 29, vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Calendar icon
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MemoriesScreen(),
-                            ),
-                          );
-                        },
-                        child: Container(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Calendar icon
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MemoriesScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
                             padding: EdgeInsets.symmetric(
                                 horizontal: 26, vertical: 8),
-                          width: 70,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/images/calendar.png',
-                            width: 19.4,
-                            height: 19.4,
-                          ),
-                        ),
-                      ),
-
-                      // Fitly title
-                      Text(
-                        'Fitly',
-                        style: TextStyle(
-                          fontSize: 34.56,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'SF Pro Display',
-                          color: Colors.black,
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-
-                      // Streak icon with count
-                      GestureDetector(
-                        onTap: () async {
-                          // Show streak popup
-                          _showStreakPopup();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          width: 70, // Fixed width
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Image.asset(
-                                'assets/images/streak0.png',
-                                width: 19.4,
-                                height: 19.4,
-                                color: streakCount > 0 ? Color(0xFFFF9801) : null, // Orange for active streak
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                streakCount > 0 ? '1' : '0',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                  decoration: TextDecoration.none,
+                            width: 70,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/calendar.png',
+                              width: 19.4,
+                              height: 19.4,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
 
-                // Today text
-                Padding(
-                    padding:
-                        const EdgeInsets.only(left: 29, top: 8, bottom: 16),
-                  child: Text(
-                    'Today',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'SF Pro Display',
-                      color: Colors.black,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ),
-
-                // Flippable Calorie/Activity card
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 29),
-                  child: FlipCard(
-                    frontSide: _buildCalorieCard(),
-                    backSide: HomeCard2(),
-                    onFlip: () {
-                      setState(() {
-                        _showFrontCard = !_showFrontCard;
-                      });
-                    },
-                  ),
-                ),
-
-                // Pagination dots
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _showFrontCard
-                                ? Colors.black
-                                : Color(0xFFDADADA),
+                        // Fitly title
+                        Text(
+                          'Fitly',
+                          style: TextStyle(
+                            fontSize: 34.56,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'SF Pro Display',
+                            color: Colors.black,
+                            decoration: TextDecoration.none,
                           ),
                         ),
-                        SizedBox(width: 8),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _showFrontCard
-                                ? Color(0xFFDADADA)
-                                : Colors.black,
+
+                        // Streak icon with count
+                        GestureDetector(
+                          onTap: () async {
+                            // Show streak popup
+                            _showStreakPopup();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            width: 70, // Fixed width
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(
+                                  'assets/images/streak0.png',
+                                  width: 19.4,
+                                  height: 19.4,
+                                  color: streakCount > 0
+                                      ? Color(0xFFFF9801)
+                                      : null, // Orange for active streak
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  streakCount > 0 ? '1' : '0',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
 
-                // Snap Meal and Coach buttons
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 29),
-                  child: Row(
-                    children: [
-                      // Snap Meal button
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            // Navigate to SnapFood screen
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SnapFood(),
-                              ),
-                            ).then((_) {
-                              _loadFoodCards();
-                            });
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/images/camera.png',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                SizedBox(width: 14),
-                                Text(
-                                  'Snap Meal',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(width: 22),
-
-                      // Coach button
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            print("Navigating to Coach screen");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => CoachScreen()),
-                            );
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/images/coach.png',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                SizedBox(width: 14),
-                                Text(
-                                  'Coach',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Recent Activity section
-                Padding(
+                  // Today text
+                  Padding(
                     padding:
-                        const EdgeInsets.only(left: 29, top: 24, bottom: 16),
-                  child: Text(
-                    'Recent Activity',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'SF Pro Display',
-                      color: Colors.black,
-                      decoration: TextDecoration.none,
+                        const EdgeInsets.only(left: 29, top: 8, bottom: 16),
+                    child: Text(
+                      'Today',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'SF Pro Display',
+                        color: Colors.black,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
-                ),
 
-                // Dynamic food cards
-                ..._buildDynamicFoodCards(),
+                  // Flippable Calorie/Activity card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 29),
+                    child: FlipCard(
+                      frontSide: _buildCalorieCard(),
+                      backSide: HomeCard2(),
+                      onFlip: () {
+                        setState(() {
+                          _showFrontCard = !_showFrontCard;
+                        });
+                      },
+                    ),
+                  ),
 
-                // Add padding at the bottom to ensure content doesn't get cut off by the nav bar
-                SizedBox(height: 90),
-              ],
+                  // Pagination dots
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _showFrontCard
+                                  ? Colors.black
+                                  : Color(0xFFDADADA),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _showFrontCard
+                                  ? Color(0xFFDADADA)
+                                  : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Snap Meal and Coach buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 29),
+                    child: Row(
+                      children: [
+                        // Snap Meal button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              // Navigate to SnapFood screen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SnapFood(),
+                                ),
+                              ).then((_) {
+                                _loadFoodCards();
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/camera.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
+                                  SizedBox(width: 14),
+                                  Text(
+                                    'Snap Meal',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(width: 22),
+
+                        // Coach button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              print("Navigating to Coach screen");
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => CoachScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/coach.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
+                                  SizedBox(width: 14),
+                                  Text(
+                                    'Coach',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Recent Activity section
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(left: 29, top: 24, bottom: 16),
+                    child: Text(
+                      'Recent Activity',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'SF Pro Display',
+                        color: Colors.black,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+
+                  // Dynamic food cards
+                  ..._buildDynamicFoodCards(),
+
+                  // Add padding at the bottom to ensure content doesn't get cut off by the nav bar
+                  SizedBox(height: 90),
+                ],
+              ),
             ),
           ),
-        ),
 
-        // Fixed bottom navigation bar
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 90, // Increased from 60px to 90px
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 0),
-              child: Transform.translate(
-                offset: Offset(0, -5),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem('Home', 'assets/images/home.png',
-                        _selectedIndex == 0, 0),
-                    _buildNavItem('Social', 'assets/images/socialicon.png',
-                        _selectedIndex == 1, 1),
-                    _buildNavItem('Nutrition', 'assets/images/nutrition.png',
-                        _selectedIndex == 2, 2),
-                    _buildNavItem('Workout', 'assets/images/dumbbell.png',
-                        _selectedIndex == 3, 3),
-                    _buildNavItem('Profile', 'assets/images/profile.png',
-                        _selectedIndex == 4, 4),
-                  ],
+          // Fixed bottom navigation bar
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 90, // Increased from 60px to 90px
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0),
+                child: Transform.translate(
+                  offset: Offset(0, -5),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem('Home', 'assets/images/home.png',
+                          _selectedIndex == 0, 0),
+                      _buildNavItem('Social', 'assets/images/socialicon.png',
+                          _selectedIndex == 1, 1),
+                      _buildNavItem('Nutrition', 'assets/images/nutrition.png',
+                          _selectedIndex == 2, 2),
+                      _buildNavItem('Workout', 'assets/images/dumbbell.png',
+                          _selectedIndex == 3, 3),
+                      _buildNavItem('Profile', 'assets/images/profile.png',
+                          _selectedIndex == 4, 4),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
@@ -2077,30 +2082,33 @@ class _CodiaPageState extends State<CodiaPage> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(height: 35), // Increased for more vertical space
-                
+
                 // Streak icon - 175x175 as specified
                 Image.asset(
                   'assets/images/streak0.png',
                   width: 175,
                   height: 175,
-                  color: streakCount > 0 ? Color(0xFFFF9801) : null, // Orange color for active streak
+                  color: streakCount > 0
+                      ? Color(0xFFFF9801)
+                      : null, // Orange color for active streak
                 ),
-                
+
                 SizedBox(height: 20),
-                
+
                 // Streak count text - changes based on streak
                 Text(
                   streakCount > 0 ? "1 Day Streak" : "0 Day Streak",
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: streakCount > 0 ? Color(0xFFFF9801) : Color(0xFFD9D9D9),
+                    color:
+                        streakCount > 0 ? Color(0xFFFF9801) : Color(0xFFD9D9D9),
                     fontFamily: 'SF Pro Display',
                   ),
                 ),
-                
+
                 SizedBox(height: 20),
-                
+
                 // Level 1 text and progress bar for streaks > 0
                 if (streakCount > 0) ...[
                   Text(
@@ -2111,9 +2119,9 @@ class _CodiaPageState extends State<CodiaPage> {
                       fontFamily: 'SF Pro Display',
                     ),
                   ),
-                  
+
                   SizedBox(height: 10),
-                  
+
                   // Progress bar
                   Container(
                     width: 280, // Same width as Continue button
@@ -2125,7 +2133,9 @@ class _CodiaPageState extends State<CodiaPage> {
                     child: Row(
                       children: [
                         Container(
-                          width: (280.0 / 7.0) * streakCount.toDouble(), // Calculate exact width based on button width (280px / 7 days)
+                          width: (280.0 / 7.0) *
+                              streakCount
+                                  .toDouble(), // Calculate exact width based on button width (280px / 7 days)
                           height: 10.0,
                           decoration: BoxDecoration(
                             color: Color(0xFFFF9801),
@@ -2135,17 +2145,17 @@ class _CodiaPageState extends State<CodiaPage> {
                       ],
                     ),
                   ),
-                  
+
                   SizedBox(height: 20),
                 ],
-                
+
                 // Motivational text - changes based on streak
                 Container(
                   width: 280, // Match button width for alignment
                   child: Text(
-                    streakCount > 0 
-                      ? "You're building a habit of success!" // 37 character limit
-                      : "Every journey starts at zero - \nStart Now!", 
+                    streakCount > 0
+                        ? "You're building a habit of success!" // 37 character limit
+                        : "Every journey starts at zero - \nStart Now!",
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.black.withOpacity(0.6),
@@ -2154,9 +2164,9 @@ class _CodiaPageState extends State<CodiaPage> {
                     textAlign: TextAlign.center,
                   ),
                 ),
-                
+
                 SizedBox(height: 35),
-                
+
                 // Continue button - match sizing of Fix with AI button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -2173,8 +2183,8 @@ class _CodiaPageState extends State<CodiaPage> {
                         Navigator.of(context).pop();
                       },
                       style: ButtonStyle(
-                        overlayColor: MaterialStateProperty.all(
-                            Colors.transparent),
+                        overlayColor:
+                            MaterialStateProperty.all(Colors.transparent),
                       ),
                       child: const Text(
                         'Continue',
