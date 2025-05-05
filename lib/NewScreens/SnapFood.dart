@@ -702,54 +702,24 @@ class _SnapFoodState extends State<SnapFood> {
         }
 
         // Other nutrients - extract directly from response and always display
-        print("\nOTHER NUTRIENTS:");
-        Map<String, dynamic> otherNutrients = analysisData['other_nutrients'] ?? {};
-        
-        // Debug the raw data
-        print("DEBUG - RAW OTHER NUTRIENTS DATA: $otherNutrients");
-        
-        // Always show these nutrients even if other_nutrients is empty
-        final mandatoryNutrients = [
-          {'key': 'fiber', 'label': 'Fiber', 'unit': 'g'},
-          {'key': 'cholesterol', 'label': 'Cholesterol', 'unit': 'mg'},
-          {'key': 'omega_3', 'label': 'Omega-3', 'unit': 'g'},
-          {'key': 'omega_6', 'label': 'Omega-6', 'unit': 'g'},
-          {'key': 'sodium', 'label': 'Sodium', 'unit': 'mg'},
-          {'key': 'sugar', 'label': 'Sugar', 'unit': 'g'},
-          {'key': 'saturated_fat', 'label': 'Saturated Fat', 'unit': 'g'}
-        ];
-        
-        // First try to get values from other_nutrients map
-        if (otherNutrients.isNotEmpty) {
-          otherNutrients.forEach((key, value) {
-            // Format key for display - convert snake_case to proper case
-            String displayKey = key.split('_').map((word) => 
-              word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
-            ).join(' ');
-            
-            String unit = _getUnitForOtherNutrient(key);
-            print("  $displayKey: ${_extractDecimalValue(value.toString())}$unit");
-          });
-        } 
-        
-        // If other_nutrients doesn't contain all expected values, check if they're in the root object
-        bool foundMissingNutrients = false;
-        for (var item in mandatoryNutrients) {
-          final String key = item['key'] as String;
-          final String label = item['label'] as String;
-          final String unit = item['unit'] as String;
+        print("\nOTHER NUTRIENTS: (FORCE DISPLAY)");
+
+        // Explicitly check what's in the raw response
+        if (analysisData.containsKey('other_nutrients')) {
+          Map<String, dynamic> otherNuts = analysisData['other_nutrients'];
+          print("Raw other_nutrients data: $otherNuts"); 
           
-          // Skip if we already displayed this from other_nutrients
-          if (otherNutrients.containsKey(key)) continue;
-          
-          // If it's in the root object, display it
-          if (analysisData.containsKey(key)) {
-            foundMissingNutrients = true;
-            print("  $label: ${_extractDecimalValue(analysisData[key].toString())}$unit");
-          } else {
-            // If it's missing completely, show as 0
-            print("  $label: 0$unit");
-          }
+          // DIRECTLY print each nutrient we expect
+          print("  Fiber: ${otherNuts['fiber'] ?? 0}g");
+          print("  Cholesterol: ${otherNuts['cholesterol'] ?? 0}mg");
+          print("  Omega-3: ${otherNuts['omega_3'] ?? 0}g");
+          print("  Omega-6: ${otherNuts['omega_6'] ?? 0}g");
+          print("  Sodium: ${otherNuts['sodium'] ?? 0}mg");
+          print("  Sugar: ${otherNuts['sugar'] ?? 0}g");
+          print("  Saturated Fat: ${otherNuts['saturated_fat'] ?? 0}g");
+        } else {
+          print("  ERROR: No other_nutrients found in response");
+          print("  Raw response keys: ${analysisData.keys.join(', ')}");
         }
 
         print("Health Score: $healthScore");
