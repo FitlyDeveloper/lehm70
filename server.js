@@ -149,6 +149,19 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       const parsedData = JSON.parse(content);
       console.log('Successfully parsed JSON response');
       
+      // Debug the response structure
+      console.log('Response structure:');
+      console.log('- meal_name: present =', !!parsedData.meal_name);
+      console.log('- vitamins: present =', !!parsedData.vitamins);
+      console.log('- minerals: present =', !!parsedData.minerals);
+      console.log('- other_nutrients: present =', !!parsedData.other_nutrients);
+      
+      if (parsedData.other_nutrients) {
+        console.log('- other_nutrients keys:', Object.keys(parsedData.other_nutrients));
+      } else {
+        console.log('- other_nutrients is missing or null!');
+      }
+      
       // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
         return res.json({

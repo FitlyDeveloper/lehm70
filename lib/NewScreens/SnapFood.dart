@@ -704,11 +704,24 @@ class _SnapFoodState extends State<SnapFood> {
         // Other nutrients 
         Map<String, dynamic> otherNutrients = analysisData['other_nutrients'] ?? {};
         if (otherNutrients.isNotEmpty) {
-          print("\nOTHER:");
+          print("\nOTHER NUTRIENTS:");
           otherNutrients.forEach((key, value) {
+            // Format key for display - convert snake_case to proper case
+            String displayKey = key.split('_').map((word) => 
+              word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+            ).join(' ');
+            
             String unit = _getUnitForOtherNutrient(key);
-            print("  $key: ${_extractDecimalValue(value.toString())}$unit");
+            print("  $displayKey: ${_extractDecimalValue(value.toString())}$unit");
           });
+        } else {
+          print("\nOTHER NUTRIENTS: None provided by API");
+          // Debug output
+          print("DEBUG: other_nutrients exists in response: ${analysisData.containsKey('other_nutrients')}");
+          if (analysisData.containsKey('other_nutrients')) {
+            print("DEBUG: other_nutrients type: ${analysisData['other_nutrients'].runtimeType}");
+            print("DEBUG: other_nutrients empty: ${(analysisData['other_nutrients'] as Map?)?.isEmpty ?? true}");
+          }
         }
 
         // Additional values that might be directly in the root
@@ -766,75 +779,75 @@ class _SnapFoodState extends State<SnapFood> {
   List<Map<String, dynamic>> _processIngredients(List<dynamic> ingredients, List<dynamic>? ingredientMacros) {
     List<Map<String, dynamic>> ingredientsList = [];
     
-    for (int i = 0; i < ingredients.length; i++) {
+        for (int i = 0; i < ingredients.length; i++) {
       String ingredient = ingredients[i].toString();
-      
-      // Extract weight and calories if available
-      final regex = RegExp(r'(.*?)\s*\((.*?)\)\s*(\d+)kcal');
+
+          // Extract weight and calories if available
+          final regex = RegExp(r'(.*?)\s*\((.*?)\)\s*(\d+)kcal');
       final match = regex.firstMatch(ingredient);
-      
-      Map<String, dynamic> ingredientData = {};
-      
-      if (match != null) {
+
+          Map<String, dynamic> ingredientData = {};
+
+          if (match != null) {
         String ingredientName = match.group(1)?.trim() ?? ingredient;
-        String weight = match.group(2) ?? "30g";
-        int kcal = int.tryParse(match.group(3) ?? "75") ?? 75;
-        
-        ingredientData = {
-          'name': ingredientName,
-          'amount': weight,
-          'calories': kcal,
-        };
-      } else {
-        // Default values if no match
-        ingredientData = {
+            String weight = match.group(2) ?? "30g";
+            int kcal = int.tryParse(match.group(3) ?? "75") ?? 75;
+
+            ingredientData = {
+              'name': ingredientName,
+              'amount': weight,
+              'calories': kcal,
+            };
+          } else {
+            // Default values if no match
+            ingredientData = {
           'name': ingredient,
-          'amount': "30g",
-          'calories': 75,
-        };
-      }
-      
-      // Add macronutrient data if available
+              'amount': "30g",
+              'calories': 75,
+            };
+          }
+
+          // Add macronutrient data if available
       if (ingredientMacros != null && i < ingredientMacros.length && ingredientMacros[i] is Map) {
         Map<String, dynamic> macros = Map<String, dynamic>.from(ingredientMacros[i]);
-        
+
         // Add protein, fat, and carbs
-        if (macros.containsKey('protein')) {
-          var proteinValue = macros['protein'];
+            if (macros.containsKey('protein')) {
+              var proteinValue = macros['protein'];
           ingredientData['protein'] = (proteinValue is num) 
               ? proteinValue.toDouble() 
               : double.tryParse(proteinValue.toString()) ?? 0.0;
-        } else {
-          ingredientData['protein'] = 0.0;
-        }
-        
-        if (macros.containsKey('fat')) {
-          var fatValue = macros['fat'];
+            } else {
+              ingredientData['protein'] = 0.0;
+            }
+
+            if (macros.containsKey('fat')) {
+              var fatValue = macros['fat'];
           ingredientData['fat'] = (fatValue is num) 
               ? fatValue.toDouble() 
               : double.tryParse(fatValue.toString()) ?? 0.0;
-        } else {
-          ingredientData['fat'] = 0.0;
-        }
-        
+            } else {
+              ingredientData['fat'] = 0.0;
+            }
+
         if (macros.containsKey('carbs') || macros.containsKey('carbohydrates')) {
-          var carbsValue = macros['carbs'] ?? macros['carbohydrates'];
+              var carbsValue = macros['carbs'] ?? macros['carbohydrates'];
           ingredientData['carbs'] = (carbsValue is num) 
               ? carbsValue.toDouble() 
               : double.tryParse(carbsValue.toString()) ?? 0.0;
-        } else {
-          ingredientData['carbs'] = 0.0;
-        }
-      } else {
+              } else {
+                ingredientData['carbs'] = 0.0;
+              }
+            } else {
         // If no specific macros data, set defaults
         ingredientData['protein'] = 3.0;
         ingredientData['fat'] = 2.0;
         ingredientData['carbs'] = 10.0;
-      }
-      
-      ingredientsList.add(ingredientData);
-    }
-    
+          }
+
+          ingredientsList.add(ingredientData);
+        }
+
     return ingredientsList;
   }
 
@@ -889,7 +902,7 @@ class _SnapFoodState extends State<SnapFood> {
 
       // Try to persist the data to SharedPreferences
       try {
-        final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
         List<String> foodCards = prefs.getStringList('food_cards') ?? [];
         
         // Add new food card to the list
@@ -898,7 +911,7 @@ class _SnapFoodState extends State<SnapFood> {
         // Save updated list back to SharedPreferences
         await prefs.setStringList('food_cards', foodCards);
         print('Food card saved successfully!');
-      } catch (e) {
+          } catch (e) {
         print('Error saving food card: $e');
       }
 
@@ -907,15 +920,15 @@ class _SnapFoodState extends State<SnapFood> {
       if (mounted) {
         // Create a new route to FoodCardOpen
         final route = MaterialPageRoute(
-          builder: (context) => FoodCardOpen(
-            foodName: foodName,
-            healthScore: healthScore,
-            calories: calories.toString(),
-            protein: protein.toString(),
-            fat: fat.toString(),
-            carbs: carbs.toString(),
-            imageBase64: highQualityImageBase64 ?? base64Image,
-            ingredients: ingredientsList, // Pass ingredients list
+            builder: (context) => FoodCardOpen(
+              foodName: foodName,
+              healthScore: healthScore,
+              calories: calories.toString(),
+              protein: protein.toString(),
+              fat: fat.toString(),
+              carbs: carbs.toString(),
+              imageBase64: highQualityImageBase64 ?? base64Image,
+              ingredients: ingredientsList, // Pass ingredients list
             vitamins: vitamins, // Pass vitamins data
             minerals: minerals, // Pass minerals data
             otherNutrients: otherNutrients, // Pass other nutrients data
@@ -944,7 +957,7 @@ class _SnapFoodState extends State<SnapFood> {
         return 'g';
       case 'cholesterol':
       case 'sodium':
-        return 'mg';
+      return 'mg';
       default:
         return '';
     }
