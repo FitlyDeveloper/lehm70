@@ -96,7 +96,7 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for calories, protein, fat, carbs, vitamin C\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. CRITICAL: provide DETAILED vitamin and mineral content including vitamin A, B1, B2, B3, B6, B12, C, D, E, K, calcium, iron, magnesium, phosphorus, potassium, sodium, zinc\n7. CRITICAL: include other nutritional values like fiber, sugar, cholesterol, and saturated fat\n8. Use decimal places and realistic estimates\n9. DO NOT respond with markdown code blocks or text explanations\n10. DO NOT prefix your response with "json" or ```\n11. ONLY RETURN A RAW JSON OBJECT\n12. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\n[VITAMINS, MINERALS AND OTHER NUTRIENTS]\n- You MUST provide detailed vitamin content including vitamin A, B1, B2, B3, B6, B12, C, D, E, K\n- You MUST provide detailed mineral content including calcium, iron, magnesium, phosphorus, potassium, sodium, zinc\n- You MUST provide other nutritional values like fiber, sugar, cholesterol, and saturated fat\n- Use realistic values based on food composition databases\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": 12.5, "fat": 5.2, "carbs": 45.7},\n    {"protein": 8.3, "fat": 3.1, "carbs": 28.3}\n  ],\n  "calories": number,\n  "protein": number,\n  "fat": number,\n  "carbs": number,\n  "vitamin_c": number,\n  "health_score": "score/10",\n  "vitamins": {\n    "vitamin_a": number,\n    "vitamin_b1": number,\n    "vitamin_b2": number,\n    "vitamin_b3": number,\n    "vitamin_b6": number,\n    "vitamin_b12": number,\n    "vitamin_c": number,\n    "vitamin_d": number,\n    "vitamin_e": number,\n    "vitamin_k": number\n  },\n  "minerals": {\n    "calcium": number,\n    "iron": number,\n    "magnesium": number,\n    "phosphorus": number,\n    "potassium": number,\n    "sodium": number,\n    "zinc": number\n  },\n  "other_nutrients": {\n    "fiber": number,\n    "sugar": number,\n    "cholesterol": number,\n    "saturated_fat": number\n  }\n}'
+            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., \"Pasta Meal\", \"Breakfast Plate\")\n2. List ingredients with weights and calories (e.g., \"Pasta (100g) 200kcal\")\n3. Return total values for calories, protein, fat, carbs\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. CRITICAL: provide DETAILED vitamin and mineral content including all nutrients listed below\n\n[VITAMINS, MINERALS AND OTHER NUTRIENTS]\nYou MUST return values (even if 0) for ALL of the following nutrients in the exact order listed:\n\nVitamins (in this exact order):\n- vitamin_a\n- vitamin_c\n- vitamin_d\n- vitamin_e\n- vitamin_k\n- vitamin_b1\n- vitamin_b2\n- vitamin_b3\n- vitamin_b5\n- vitamin_b6\n- vitamin_b7\n- vitamin_b9\n- vitamin_b12\n\nMinerals (in this exact order):\n- calcium\n- chloride\n- chromium\n- copper\n- fluoride\n- iodine\n- iron\n- magnesium\n- manganese\n- molybdenum\n- phosphorus\n- potassium\n- selenium\n- sodium\n- zinc\n\nOther nutrients (in this exact order):\n- fiber\n- cholesterol\n- omega_3\n- omega_6\n- sodium\n- sugar\n- saturated_fat\n\nRESPONSE FORMAT (STRICTLY JSON):\n{\n  \"meal_name\": \"Meal Name\",\n  \"ingredients\": [\"Ingredient 1 (weight) calories\", \"Ingredient 2 (weight) calories\", ...],\n  \"ingredient_macros\": [{\"protein\": X, \"fat\": Y, \"carbs\": Z}, ...],\n  \"calories\": total_calories,\n  \"protein\": total_protein_grams,\n  \"fat\": total_fat_grams,\n  \"carbs\": total_carbs_grams,\n  \"health_score\": \"N/10\",\n  \"vitamins\": {\n    \"vitamin_a\": value,\n    \"vitamin_c\": value,\n    \"vitamin_d\": value,\n    \"vitamin_e\": value,\n    \"vitamin_k\": value,\n    \"vitamin_b1\": value,\n    \"vitamin_b2\": value,\n    \"vitamin_b3\": value,\n    \"vitamin_b5\": value,\n    \"vitamin_b6\": value,\n    \"vitamin_b7\": value,\n    \"vitamin_b9\": value,\n    \"vitamin_b12\": value\n  },\n  \"minerals\": {\n    \"calcium\": value,\n    \"chloride\": value,\n    \"chromium\": value,\n    \"copper\": value,\n    \"fluoride\": value,\n    \"iodine\": value,\n    \"iron\": value,\n    \"magnesium\": value,\n    \"manganese\": value,\n    \"molybdenum\": value,\n    \"phosphorus\": value,\n    \"potassium\": value,\n    \"selenium\": value,\n    \"sodium\": value,\n    \"zinc\": value\n  },\n  \"other_nutrients\": {\n    \"fiber\": value,\n    \"cholesterol\": value,\n    \"omega_3\": value,\n    \"omega_6\": value,\n    \"sodium\": value,\n    \"sugar\": value,\n    \"saturated_fat\": value\n  }\n}'
           },
           {
             role: 'user',
@@ -402,29 +402,43 @@ function transformToRequiredFormat(data) {
       health_score: "7/10", // Default value
       vitamins: {
         vitamin_a: 0,
-        vitamin_b1: 0,
-        vitamin_b2: 0,
-        vitamin_b3: 0,
-        vitamin_b6: 0,
-        vitamin_b12: 0,
         vitamin_c: 0,
         vitamin_d: 0,
         vitamin_e: 0,
-        vitamin_k: 0
+        vitamin_k: 0,
+        vitamin_b1: 0,
+        vitamin_b2: 0,
+        vitamin_b3: 0,
+        vitamin_b5: 0,
+        vitamin_b6: 0,
+        vitamin_b7: 0,
+        vitamin_b9: 0,
+        vitamin_b12: 0
       },
       minerals: {
         calcium: 0,
+        chloride: 0,
+        chromium: 0,
+        copper: 0,
+        fluoride: 0,
+        iodine: 0,
         iron: 0,
         magnesium: 0,
+        manganese: 0,
+        molybdenum: 0,
         phosphorus: 0,
         potassium: 0,
+        selenium: 0,
         sodium: 0,
         zinc: 0
       },
       other_nutrients: {
         fiber: 0,
-        sugar: 0,
         cholesterol: 0,
+        omega_3: 0,
+        omega_6: 0,
+        sodium: 0,
+        sugar: 0,
         saturated_fat: 0
       }
     };
@@ -451,29 +465,43 @@ function transformToRequiredFormat(data) {
     health_score: "6/10",
     vitamins: {
       vitamin_a: 0,
-      vitamin_b1: 0,
-      vitamin_b2: 0,
-      vitamin_b3: 0,
-      vitamin_b6: 0,
-      vitamin_b12: 0,
       vitamin_c: 0,
       vitamin_d: 0,
       vitamin_e: 0,
-      vitamin_k: 0
+      vitamin_k: 0,
+      vitamin_b1: 0,
+      vitamin_b2: 0,
+      vitamin_b3: 0,
+      vitamin_b5: 0,
+      vitamin_b6: 0,
+      vitamin_b7: 0,
+      vitamin_b9: 0,
+      vitamin_b12: 0
     },
     minerals: {
       calcium: 0,
+      chloride: 0,
+      chromium: 0,
+      copper: 0,
+      fluoride: 0,
+      iodine: 0,
       iron: 0,
       magnesium: 0,
+      manganese: 0,
+      molybdenum: 0,
       phosphorus: 0,
       potassium: 0,
+      selenium: 0,
       sodium: 0,
       zinc: 0
     },
     other_nutrients: {
       fiber: 0,
-      sugar: 0,
       cholesterol: 0,
+      omega_3: 0,
+      omega_6: 0,
+      sodium: 0,
+      sugar: 0,
       saturated_fat: 0
     }
   };
@@ -716,29 +744,43 @@ function transformTextToRequiredFormat(text) {
       health_score: `${healthScore}/10`,
       vitamins: {
         vitamin_a: 0,
-        vitamin_b1: 0,
-        vitamin_b2: 0,
-        vitamin_b3: 0,
-        vitamin_b6: 0,
-        vitamin_b12: 0,
         vitamin_c: 0,
         vitamin_d: 0,
         vitamin_e: 0,
-        vitamin_k: 0
+        vitamin_k: 0,
+        vitamin_b1: 0,
+        vitamin_b2: 0,
+        vitamin_b3: 0,
+        vitamin_b5: 0,
+        vitamin_b6: 0,
+        vitamin_b7: 0,
+        vitamin_b9: 0,
+        vitamin_b12: 0
       },
       minerals: {
         calcium: 0,
+        chloride: 0,
+        chromium: 0,
+        copper: 0,
+        fluoride: 0,
+        iodine: 0,
         iron: 0,
         magnesium: 0,
+        manganese: 0,
+        molybdenum: 0,
         phosphorus: 0,
         potassium: 0,
+        selenium: 0,
         sodium: 0,
         zinc: 0
       },
       other_nutrients: {
         fiber: 0,
-        sugar: 0,
         cholesterol: 0,
+        omega_3: 0,
+        omega_6: 0,
+        sodium: 0,
+        sugar: 0,
         saturated_fat: 0
       }
     };
@@ -765,29 +807,43 @@ function transformTextToRequiredFormat(text) {
     health_score: "6/10",
     vitamins: {
       vitamin_a: 0,
-      vitamin_b1: 0,
-      vitamin_b2: 0,
-      vitamin_b3: 0,
-      vitamin_b6: 0,
-      vitamin_b12: 0,
       vitamin_c: 0,
       vitamin_d: 0,
       vitamin_e: 0,
-      vitamin_k: 0
+      vitamin_k: 0,
+      vitamin_b1: 0,
+      vitamin_b2: 0,
+      vitamin_b3: 0,
+      vitamin_b5: 0,
+      vitamin_b6: 0,
+      vitamin_b7: 0,
+      vitamin_b9: 0,
+      vitamin_b12: 0
     },
     minerals: {
       calcium: 0,
+      chloride: 0,
+      chromium: 0,
+      copper: 0,
+      fluoride: 0,
+      iodine: 0,
       iron: 0,
       magnesium: 0,
+      manganese: 0,
+      molybdenum: 0,
       phosphorus: 0,
       potassium: 0,
+      selenium: 0,
       sodium: 0,
       zinc: 0
     },
     other_nutrients: {
       fiber: 0,
-      sugar: 0,
       cholesterol: 0,
+      omega_3: 0,
+      omega_6: 0,
+      sodium: 0,
+      sugar: 0,
       saturated_fat: 0
     }
   };
