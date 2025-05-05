@@ -34,18 +34,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 // Configure CORS
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if the origin is allowed
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  methods: ['POST'],
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST'],
   credentials: true
 }));
 
@@ -329,7 +319,7 @@ function transformToRequiredFormat(data) {
         fat = 14.0;
         carbs = 0.0;
       } else if (ingredientName.toLowerCase().includes('fish') || 
-                ingredientName.toLowerCase().includes('salmon')) {
+                ingredientName.includes('salmon')) {
         ingredientWeight = '100g';
         ingredientCalories = 206;
         protein = 22.0;
