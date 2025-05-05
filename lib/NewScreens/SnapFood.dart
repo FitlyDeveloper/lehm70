@@ -701,22 +701,12 @@ class _SnapFoodState extends State<SnapFood> {
           });
         }
 
-        // Amino acids
-        Map<String, dynamic> aminoAcids = analysisData['amino_acids'] ?? {};
-        if (aminoAcids.isNotEmpty) {
-          print("\nAMINO ACIDS:");
-          aminoAcids.forEach((key, value) {
-            print("  $key: ${_extractDecimalValue(value.toString())}g");
-          });
-        }
-
-        // Other nutritional values
-        Map<String, dynamic> otherNutrition =
-            analysisData['nutrition_other'] ?? {};
-        if (otherNutrition.isNotEmpty) {
-          print("\nOTHER NUTRITION VALUES:");
-          otherNutrition.forEach((key, value) {
-            String unit = _getUnitForNutrient(key);
+        // Other nutrients 
+        Map<String, dynamic> otherNutrients = analysisData['other_nutrients'] ?? {};
+        if (otherNutrients.isNotEmpty) {
+          print("\nOTHER:");
+          otherNutrients.forEach((key, value) {
+            String unit = _getUnitForOtherNutrient(key);
             print("  $key: ${_extractDecimalValue(value.toString())}$unit");
           });
         }
@@ -751,134 +741,6 @@ class _SnapFoodState extends State<SnapFood> {
             "TOTAL CALORIES: ${calories.toInt()}kcal"); // Format as integer for terminal
         print("---------------------------------\n");
 
-        // Save the data
-        List<Map<String, dynamic>> ingredientsList = [];
-
-        // Check if the API response includes detailed ingredient macros
-        List<dynamic> ingredientMacros =
-            analysisData['ingredient_macros'] ?? [];
-
-        // Process each ingredient with macros if available
-        for (int i = 0; i < ingredients.length; i++) {
-          String name = ingredients[i].toString();
-
-          // Extract weight and calories if available
-          final regex = RegExp(r'(.*?)\s*\((.*?)\)\s*(\d+)kcal');
-          final match = regex.firstMatch(name);
-
-          Map<String, dynamic> ingredientData = {};
-
-          if (match != null) {
-            String ingredientName = match.group(1)?.trim() ?? name;
-            String weight = match.group(2) ?? "30g";
-            int kcal = int.tryParse(match.group(3) ?? "75") ?? 75;
-
-            ingredientData = {
-              'name': ingredientName,
-              'amount': weight,
-              'calories': kcal,
-            };
-          } else {
-            // Default values if no match
-            ingredientData = {
-              'name': name,
-              'amount': "30g",
-              'calories': 75,
-            };
-          }
-
-          // Add macronutrient data if available
-          if (i < ingredientMacros.length && ingredientMacros[i] is Map) {
-            Map<String, dynamic> macros =
-                Map<String, dynamic>.from(ingredientMacros[i]);
-
-            // Add protein, fat, and carbs data if available
-            if (macros.containsKey('protein')) {
-              // Convert the value to a number if it's not already
-              var proteinValue = macros['protein'];
-              if (proteinValue is String) {
-                ingredientData['protein'] =
-                    double.tryParse(proteinValue) ?? 0.0;
-              } else if (proteinValue is num) {
-                ingredientData['protein'] = proteinValue.toDouble();
-              } else {
-                ingredientData['protein'] = 0.0;
-              }
-            } else {
-              ingredientData['protein'] = 0.0;
-            }
-
-            if (macros.containsKey('fat')) {
-              // Convert the value to a number if it's not already
-              var fatValue = macros['fat'];
-              if (fatValue is String) {
-                ingredientData['fat'] = double.tryParse(fatValue) ?? 0.0;
-              } else if (fatValue is num) {
-                ingredientData['fat'] = fatValue.toDouble();
-              } else {
-                ingredientData['fat'] = 0.0;
-              }
-            } else {
-              ingredientData['fat'] = 0.0;
-            }
-
-            if (macros.containsKey('carbs') ||
-                macros.containsKey('carbohydrates')) {
-              // Convert the value to a number if it's not already
-              var carbsValue = macros['carbs'] ?? macros['carbohydrates'];
-              if (carbsValue is String) {
-                ingredientData['carbs'] = double.tryParse(carbsValue) ?? 0.0;
-              } else if (carbsValue is num) {
-                ingredientData['carbs'] = carbsValue.toDouble();
-              } else {
-                ingredientData['carbs'] = 0.0;
-              }
-            } else {
-              ingredientData['carbs'] = 0.0;
-            }
-          } else {
-            // If no specific macros data for this ingredient, estimate based on calories
-            // These are very rough estimates
-            double estimatedCalories = 0.0;
-            if (ingredientData['calories'] is num) {
-              estimatedCalories = ingredientData['calories'].toDouble();
-            } else if (ingredientData['calories'] is String) {
-              estimatedCalories =
-                  double.tryParse(ingredientData['calories']) ?? 0.0;
-            }
-
-            double estimatedProtein = estimatedCalories > 0
-                ? (estimatedCalories * 0.15) / 4 // ~15% protein, 4kcal/g
-                : 3.0;
-            double estimatedFat = estimatedCalories > 0
-                ? (estimatedCalories * 0.3) / 9 // ~30% fat, 9kcal/g
-                : 2.0;
-            double estimatedCarbs = estimatedCalories > 0
-                ? (estimatedCalories * 0.55) / 4 // ~55% carbs, 4kcal/g
-                : 10.0;
-
-            ingredientData['protein'] = estimatedProtein;
-            ingredientData['fat'] = estimatedFat;
-            ingredientData['carbs'] = estimatedCarbs;
-          }
-
-          ingredientsList.add(ingredientData);
-        }
-
-        // Print debug information about the ingredients
-        print("Ingredient list with macros:");
-        for (var ingredient in ingredientsList) {
-          String name = ingredient['name'] ?? 'NO NAME';
-          String amount = ingredient['amount'] ?? 'NO AMOUNT';
-          var calories = ingredient['calories'] ?? 'NO CALORIES';
-          var protein = ingredient['protein'] ?? '0';
-          var fat = ingredient['fat'] ?? '0';
-          var carbs = ingredient['carbs'] ?? '0';
-
-          print('- $name - $amount - $calories kcal - ' +
-              'P: $protein, F: $fat, C: $carbs');
-        }
-
         // Save the food card
         _saveFoodCardData(
             mealName,
@@ -887,20 +749,111 @@ class _SnapFoodState extends State<SnapFood> {
             protein.toString(),
             fat.toString(),
             carbs.toString(),
-            ingredientsList,
+            _processIngredients(ingredients, analysisData['ingredient_macros']),
             healthScore,
             analysisData['vitamins'], // Pass vitamins data
             analysisData['minerals'], // Pass minerals data
             analysisData['other_nutrients']); // Pass other nutrients data
-
-        // Set the analysis result for the UI
-        setState(() {
-          _analysisResult = analysisData;
-          _formattedAnalysisResult = null;
-        });
-
+            
         return; // Exit early as we've handled the new format
       }
+    } catch (e) {
+      print("Error displaying analysis results: $e");
+    }
+  }
+
+  // Helper method to process ingredients list
+  List<Map<String, dynamic>> _processIngredients(List<dynamic> ingredients, List<dynamic>? ingredientMacros) {
+    List<Map<String, dynamic>> ingredientsList = [];
+    
+    for (int i = 0; i < ingredients.length; i++) {
+      String ingredient = ingredients[i].toString();
+      
+      // Extract weight and calories if available
+      final regex = RegExp(r'(.*?)\s*\((.*?)\)\s*(\d+)kcal');
+      final match = regex.firstMatch(ingredient);
+      
+      Map<String, dynamic> ingredientData = {};
+      
+      if (match != null) {
+        String ingredientName = match.group(1)?.trim() ?? ingredient;
+        String weight = match.group(2) ?? "30g";
+        int kcal = int.tryParse(match.group(3) ?? "75") ?? 75;
+        
+        ingredientData = {
+          'name': ingredientName,
+          'amount': weight,
+          'calories': kcal,
+        };
+      } else {
+        // Default values if no match
+        ingredientData = {
+          'name': ingredient,
+          'amount': "30g",
+          'calories': 75,
+        };
+      }
+      
+      // Add macronutrient data if available
+      if (ingredientMacros != null && i < ingredientMacros.length && ingredientMacros[i] is Map) {
+        Map<String, dynamic> macros = Map<String, dynamic>.from(ingredientMacros[i]);
+        
+        // Add protein, fat, and carbs
+        if (macros.containsKey('protein')) {
+          var proteinValue = macros['protein'];
+          ingredientData['protein'] = (proteinValue is num) 
+              ? proteinValue.toDouble() 
+              : double.tryParse(proteinValue.toString()) ?? 0.0;
+        } else {
+          ingredientData['protein'] = 0.0;
+        }
+        
+        if (macros.containsKey('fat')) {
+          var fatValue = macros['fat'];
+          ingredientData['fat'] = (fatValue is num) 
+              ? fatValue.toDouble() 
+              : double.tryParse(fatValue.toString()) ?? 0.0;
+        } else {
+          ingredientData['fat'] = 0.0;
+        }
+        
+        if (macros.containsKey('carbs') || macros.containsKey('carbohydrates')) {
+          var carbsValue = macros['carbs'] ?? macros['carbohydrates'];
+          ingredientData['carbs'] = (carbsValue is num) 
+              ? carbsValue.toDouble() 
+              : double.tryParse(carbsValue.toString()) ?? 0.0;
+        } else {
+          ingredientData['carbs'] = 0.0;
+        }
+      } else {
+        // If no specific macros data, set defaults
+        ingredientData['protein'] = 3.0;
+        ingredientData['fat'] = 2.0;
+        ingredientData['carbs'] = 10.0;
+      }
+      
+      ingredientsList.add(ingredientData);
+    }
+    
+    return ingredientsList;
+  }
+
+  // Helper method to get the appropriate unit for other nutrients
+  String _getUnitForOtherNutrient(String nutrient) {
+    switch (nutrient.toLowerCase()) {
+      case 'fiber':
+      case 'sugar':
+      case 'omega_3':
+      case 'omega_6':
+      case 'saturated_fat':
+        return 'g';
+      case 'cholesterol':
+      case 'sodium':
+        return 'mg';
+      default:
+        return '';
+    }
+  }
 
   // Save food card data to SharedPreferences
   Future<void> _saveFoodCardData(
@@ -979,3 +932,20 @@ class _SnapFoodState extends State<SnapFood> {
         });
       }
     }
+
+  // Helper method to get the appropriate unit for other nutrients
+  String _getUnitForOtherNutrient(String nutrient) {
+    switch (nutrient.toLowerCase()) {
+      case 'fiber':
+      case 'sugar':
+      case 'omega_3':
+      case 'omega_6':
+      case 'saturated_fat':
+        return 'g';
+      case 'cholesterol':
+      case 'sodium':
+        return 'mg';
+      default:
+        return '';
+    }
+  }

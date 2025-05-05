@@ -4512,25 +4512,24 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   // Calculate total nutrition values from all ingredients
   void _calculateTotalNutrition() {
     if (_ingredients.isEmpty) {
-      // If no ingredients, set default values
-      String oldCalories = _calories;
-      String oldProtein = _protein;
-      String oldFat = _fat;
-      String oldCarbs = _carbs;
-
+      // Use the values passed in from the parameters if available instead of defaulting to zero
       setState(() {
-        _calories = "0";
-        _protein = "0";
-        _fat = "0";
-        _carbs = "0";
+        _calories = widget.calories ?? "0";
+        _protein = widget.protein ?? "0";
+        _fat = widget.fat ?? "0";
+        _carbs = widget.carbs ?? "0";
 
-        // Only mark as unsaved if values actually changed
-        if (_calories != oldCalories ||
-            _protein != oldProtein ||
-            _fat != oldFat ||
-            _carbs != oldCarbs) {
-          print('Nutrition values changed, marking as unsaved');
-          _hasUnsavedChanges = true;
+        // Set vitamins, minerals and other nutrients from widget if available
+        if (widget.vitamins != null) {
+          _vitamins = Map<String, dynamic>.from(widget.vitamins!);
+        }
+
+        if (widget.minerals != null) {
+          _minerals = Map<String, dynamic>.from(widget.minerals!);
+        }
+
+        if (widget.otherNutrients != null) {
+          _otherNutrients = Map<String, dynamic>.from(widget.otherNutrients!);
         }
       });
       return;
