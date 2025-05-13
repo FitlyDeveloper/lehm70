@@ -19,7 +19,7 @@ class FoodAnalyzerApi {
 
       print('Calling API endpoint: $baseUrl$analyzeEndpoint');
 
-      // Call our secure API endpoint
+      // Call our secure API endpoint with improved parameters
       final response = await http
           .post(
             Uri.parse('$baseUrl$analyzeEndpoint'),
@@ -31,9 +31,12 @@ class FoodAnalyzerApi {
               'detail_level': 'high',
               'include_ingredient_macros': true,
               'return_ingredient_nutrition': true,
+              'calculate_micronutrients': true,
+              'include_nutrients': true,
             }),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(
+              seconds: 60)); // Increased timeout for more detailed analysis
 
       // Check for HTTP errors
       if (response.statusCode != 200) {
@@ -54,9 +57,28 @@ class FoodAnalyzerApi {
           'API response format: ${responseData['data'] is Map ? 'Map' : 'Other type'}');
       if (responseData['data'] is Map) {
         print('Keys in data: ${(responseData['data'] as Map).keys.join(', ')}');
+
+        // Enhanced logging for nutrition data debug
+        if ((responseData['data'] as Map).containsKey('nutrition')) {
+          print('Nutrition data found in response');
+        }
+        if ((responseData['data'] as Map).containsKey('ingredients')) {
+          print(
+              'Ingredients list found in response: ${(responseData['data']['ingredients'] as List?)?.length ?? 0} ingredients');
+
+          // Check if ingredients have nutrition data
+          final ingredients = responseData['data']['ingredients'] as List?;
+          if (ingredients != null && ingredients.isNotEmpty) {
+            final firstIngredient = ingredients.first;
+            if (firstIngredient is Map &&
+                firstIngredient.containsKey('nutrition')) {
+              print('Ingredients include nutrition data');
+            }
+          }
+        }
       }
 
-      // Return the data
+      // Make sure data is returned as is without any transformation that might lose information
       return responseData['data'];
     } catch (e) {
       print('Error analyzing food image: $e');
