@@ -2099,6 +2099,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     bool isDialogShowing = false;
 
     try {
+      // Updated to include micronutrient extraction for Nutrition.dart integration
       print('STARTING NUTRITION CALCULATION for: $foodName ($servingSize)');
 
       // Show loading dialog if context is still valid
@@ -2161,7 +2162,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       final requestData = {
         'food_name': foodName,
         'serving_size': servingSize,
-        'operation_type': 'NUTRITION_CALCULATION'
+        'operation_type': 'NUTRITION_CALCULATION',
+        'include_micronutrients': true // Request micronutrient data as well
       };
 
       print(
@@ -2327,13 +2329,9 @@ class _FoodCardOpenState extends State<FoodCardOpen>
           return {'invalid_food': true};
         }
 
-        // Apply our vitamin unit conversion to ensure all IU values are converted to mcg
-        nutritionData = _convertVitaminValuesFromAPI(nutritionData);
-        print(
-            'NUTRITION CALCULATOR: Converted IU values to mcg: $nutritionData');
-
-        // Return standardized nutrition values with fallbacks
-        final Map<String, dynamic> result = {
+        // Extract micronutrients from the response
+        // Start with an empty result with basic macros
+        Map<String, dynamic> result = {
           'calories': _extractNumericValue(
               nutritionData, ['calories', 'kcal', 'energy']),
           'protein':
@@ -2344,151 +2342,14 @@ class _FoodCardOpenState extends State<FoodCardOpen>
               _extractNumericValue(nutritionData, ['fat', 'fats', 'total_fat']),
         };
 
-        // Extract micronutrients if available and add them to the result
-        // First, check for vitamins
-        if (nutritionData.containsKey('vitamins') &&
-            nutritionData['vitamins'] is Map) {
-          Map<String, dynamic> vitamins =
-              Map<String, dynamic>.from(nutritionData['vitamins']);
-          // Store vitamins as a Map, not as a double
-          result['vitamins'] = vitamins;
-          print(
-              'NUTRITION CALCULATOR: Found vitamins data: ${vitamins.keys.join(', ')}');
-        } else {
-          result['vitamins'] = <String, dynamic>{};
-        }
+        // Add vitamins
+        _extractVitaminsFromData(nutritionData, result);
 
-        // Check for minerals
-        if (nutritionData.containsKey('minerals') &&
-            nutritionData['minerals'] is Map) {
-          Map<String, dynamic> minerals =
-              Map<String, dynamic>.from(nutritionData['minerals']);
-          // Store minerals as a Map, not as a double
-          result['minerals'] = minerals;
-          print(
-              'NUTRITION CALCULATOR: Found minerals data: ${minerals.keys.join(', ')}');
-        } else {
-          result['minerals'] = <String, dynamic>{};
-        }
+        // Add minerals
+        _extractMineralsFromData(nutritionData, result);
 
-        // Check for other nutrients
-        if ((nutritionData.containsKey('other') &&
-                nutritionData['other'] is Map) ||
-            (nutritionData.containsKey('other_nutrients') &&
-                nutritionData['other_nutrients'] is Map)) {
-          Map<String, dynamic> otherNutrients = Map<String, dynamic>.from(
-              nutritionData['other'] ?? nutritionData['other_nutrients'] ?? {});
-          // Store other_nutrients as a Map, not as a double
-          result['other_nutrients'] = otherNutrients;
-          print(
-              'NUTRITION CALCULATOR: Found other nutrients data: ${otherNutrients.keys.join(', ')}');
-        } else {
-          result['other_nutrients'] = <String, dynamic>{};
-        }
-
-        // Extract any standalone micronutrients at the root level
-        final commonMicronutrients = [
-          'fiber',
-          'cholesterol',
-          'sodium',
-          'potassium',
-          'calcium',
-          'iron',
-          'vitamin_a',
-          'vitamin_c',
-          'vitamin_d',
-          'vitamin_e',
-          'vitamin_k',
-          'thiamin',
-          'riboflavin',
-          'niacin',
-          'folate',
-          'vitamin_b12',
-          'magnesium',
-          'zinc',
-          'phosphorus',
-          'copper',
-          'manganese',
-          'selenium'
-        ];
-
-        // Create structures if they don't exist yet
-        if (!result.containsKey('vitamins')) {
-          result['vitamins'] = <String, dynamic>{};
-        }
-        if (!result.containsKey('minerals')) {
-          result['minerals'] = <String, dynamic>{};
-        }
-
-        // Extract common micronutrients from root level
-        for (final nutrient in commonMicronutrients) {
-          if (nutritionData.containsKey(nutrient)) {
-            var nutrientValue = nutritionData[nutrient];
-            String normalizedKey = nutrient.toLowerCase();
-
-            // Extract numeric value if necessary
-            double numericValue = 0.0;
-            if (nutrientValue is num) {
-              numericValue = nutrientValue.toDouble();
-            } else if (nutrientValue is String) {
-              numericValue = double.tryParse(nutrientValue) ?? 0.0;
-            } else if (nutrientValue is Map &&
-                nutrientValue.containsKey('amount')) {
-              var amount = nutrientValue['amount'];
-              if (amount is num) {
-                numericValue = amount.toDouble();
-              } else if (amount is String) {
-                numericValue = double.tryParse(amount) ?? 0.0;
-              }
-            }
-
-            // Determine if it's a vitamin or mineral
-            if (normalizedKey.startsWith('vitamin_') ||
-                normalizedKey.contains('vitamin') ||
-                normalizedKey == 'thiamin' ||
-                normalizedKey == 'riboflavin' ||
-                normalizedKey == 'niacin' ||
-                normalizedKey == 'folate') {
-              // Normalize the key if needed
-              if (normalizedKey.contains('vitamin') &&
-                  !normalizedKey.startsWith('vitamin_')) {
-                normalizedKey =
-                    'vitamin_' + normalizedKey.split('vitamin')[1].trim();
-              }
-
-              // Get proper unit
-              String unit = _getUnitForVitamin(normalizedKey);
-
-              // Store in vitamins with proper format
-              (result['vitamins'] as Map<String, dynamic>)[normalizedKey] = {
-                'amount': numericValue,
-                'unit': unit
-              };
-            } else if (normalizedKey == 'calcium' ||
-                normalizedKey == 'iron' ||
-                normalizedKey == 'magnesium' ||
-                normalizedKey == 'phosphorus' ||
-                normalizedKey == 'potassium' ||
-                normalizedKey == 'sodium' ||
-                normalizedKey == 'zinc' ||
-                normalizedKey == 'copper' ||
-                normalizedKey == 'manganese' ||
-                normalizedKey == 'selenium') {
-              // Get proper unit
-              String unit = _getUnitForMineral(normalizedKey);
-
-              // Store in minerals with proper format
-              (result['minerals'] as Map<String, dynamic>)[normalizedKey] = {
-                'amount': numericValue,
-                'unit': unit
-              };
-            } else {
-              // Store other nutrients directly in result
-              String unit = _getUnitForNutrient(normalizedKey);
-              result[normalizedKey] = {'amount': numericValue, 'unit': unit};
-            }
-          }
-        }
+        // Add other nutrients
+        _extractOtherNutrientsFromData(nutritionData, result);
 
         print('COMPLETED nutrition calculation: $result');
         return result;
@@ -2566,6 +2427,177 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       print('Using estimated nutrition values: $result');
       return result;
     }
+  }
+
+  // Helper function to extract vitamins from nutrition data
+  void _extractVitaminsFromData(
+      Map<String, dynamic> nutritionData, Map<String, dynamic> result) {
+    // Define mapping of possible API keys to vitamin names
+    final vitaminMappings = {
+      'vitamin_a': 'vitamin_a',
+      'vitamin_c': 'vitamin_c',
+      'vitamin_d': 'vitamin_d',
+      'vitamin_e': 'vitamin_e',
+      'vitamin_k': 'vitamin_k',
+      'vitamin_b1': 'vitamin_b1',
+      'thiamin': 'vitamin_b1',
+      'vitamin_b2': 'vitamin_b2',
+      'riboflavin': 'vitamin_b2',
+      'vitamin_b3': 'vitamin_b3',
+      'niacin': 'vitamin_b3',
+      'vitamin_b5': 'vitamin_b5',
+      'pantothenic_acid': 'vitamin_b5',
+      'vitamin_b6': 'vitamin_b6',
+      'pyridoxine': 'vitamin_b6',
+      'vitamin_b7': 'vitamin_b7',
+      'biotin': 'vitamin_b7',
+      'vitamin_b9': 'vitamin_b9',
+      'folate': 'vitamin_b9',
+      'folic_acid': 'vitamin_b9',
+      'vitamin_b12': 'vitamin_b12',
+      'cobalamin': 'vitamin_b12',
+    };
+
+    // Loop through nutrition data keys and extract vitamins
+    nutritionData.forEach((key, value) {
+      // Convert key to lowercase for case-insensitive matching
+      String keyLower = key.toLowerCase();
+
+      // Check if this key corresponds to a vitamin
+      for (var entry in vitaminMappings.entries) {
+        if (keyLower.contains(entry.key)) {
+          // Found a match - extract the value
+          double amount = 0.0;
+          if (value is num) {
+            amount = value.toDouble();
+          } else if (value is String) {
+            try {
+              amount =
+                  double.tryParse(value.replaceAll(RegExp(r'[^\d\.]'), '')) ??
+                      0.0;
+            } catch (e) {
+              print('Error parsing vitamin value: $e');
+            }
+          }
+
+          // Only add non-zero values
+          if (amount > 0) {
+            result[entry.value] = amount;
+            print('Extracted ${entry.value}: $amount');
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  // Helper function to extract minerals from nutrition data
+  void _extractMineralsFromData(
+      Map<String, dynamic> nutritionData, Map<String, dynamic> result) {
+    // Define mapping of possible API keys to mineral names
+    final mineralMappings = {
+      'calcium': 'calcium',
+      'iron': 'iron',
+      'magnesium': 'magnesium',
+      'phosphorus': 'phosphorus',
+      'potassium': 'potassium',
+      'sodium': 'sodium',
+      'zinc': 'zinc',
+      'copper': 'copper',
+      'manganese': 'manganese',
+      'selenium': 'selenium',
+      'chloride': 'chloride',
+      'chromium': 'chromium',
+      'iodine': 'iodine',
+      'molybdenum': 'molybdenum',
+      'fluoride': 'fluoride',
+    };
+
+    // Loop through nutrition data keys and extract minerals
+    nutritionData.forEach((key, value) {
+      // Convert key to lowercase for case-insensitive matching
+      String keyLower = key.toLowerCase();
+
+      // Check if this key corresponds to a mineral
+      for (var entry in mineralMappings.entries) {
+        if (keyLower.contains(entry.key)) {
+          // Found a match - extract the value
+          double amount = 0.0;
+          if (value is num) {
+            amount = value.toDouble();
+          } else if (value is String) {
+            try {
+              amount =
+                  double.tryParse(value.replaceAll(RegExp(r'[^\d\.]'), '')) ??
+                      0.0;
+            } catch (e) {
+              print('Error parsing mineral value: $e');
+            }
+          }
+
+          // Only add non-zero values
+          if (amount > 0) {
+            result[entry.value] = amount;
+            print('Extracted ${entry.value}: $amount');
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  // Helper function to extract other nutrients from nutrition data
+  void _extractOtherNutrientsFromData(
+      Map<String, dynamic> nutritionData, Map<String, dynamic> result) {
+    // Define mapping of possible API keys to other nutrient names
+    final otherNutrientMappings = {
+      'fiber': 'fiber',
+      'dietary_fiber': 'fiber',
+      'fibre': 'fiber',
+      'cholesterol': 'cholesterol',
+      'sugar': 'sugar',
+      'sugars': 'sugar',
+      'total_sugar': 'sugar',
+      'saturated_fat': 'saturated_fat',
+      'saturated_fats': 'saturated_fat',
+      'sat_fat': 'saturated_fat',
+      'omega_3': 'omega_3',
+      'omega3': 'omega_3',
+      'omega_6': 'omega_6',
+      'omega6': 'omega_6',
+    };
+
+    // Loop through nutrition data keys and extract other nutrients
+    nutritionData.forEach((key, value) {
+      // Convert key to lowercase for case-insensitive matching
+      String keyLower = key.toLowerCase();
+
+      // Check if this key corresponds to another nutrient
+      for (var entry in otherNutrientMappings.entries) {
+        if (keyLower.contains(entry.key)) {
+          // Found a match - extract the value
+          double amount = 0.0;
+          if (value is num) {
+            amount = value.toDouble();
+          } else if (value is String) {
+            try {
+              amount =
+                  double.tryParse(value.replaceAll(RegExp(r'[^\d\.]'), '')) ??
+                      0.0;
+            } catch (e) {
+              print('Error parsing nutrient value: $e');
+            }
+          }
+
+          // Only add non-zero values
+          if (amount > 0) {
+            result[entry.value] = amount;
+            print('Extracted ${entry.value}: $amount');
+          }
+          break;
+        }
+      }
+    });
   }
 
   // Helper method to safely dismiss dialog without context errors
@@ -4238,20 +4270,13 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                     return;
                   }
 
-                  // Convert any IU values to mcg before using them
-                  Map<String, dynamic> processedNutritionData =
-                      _convertVitaminValuesFromAPI(nutritionData);
-                  print(
-                      'INGREDIENT ADD: Converted IU values to mcg for Vitamin A and D');
-
                   // Extract values with more careful parsing
-                  calories = double.tryParse(
-                          processedNutritionData['calories'].toString()) ??
-                      0.0;
-                  protein =
-                      (processedNutritionData['protein'] ?? 0.0).toString();
-                  fat = (processedNutritionData['fat'] ?? 0.0).toString();
-                  carbs = (processedNutritionData['carbs'] ?? 0.0).toString();
+                  calories =
+                      double.tryParse(nutritionData['calories'].toString()) ??
+                          0.0;
+                  protein = (nutritionData['protein'] ?? 0.0).toString();
+                  fat = (nutritionData['fat'] ?? 0.0).toString();
+                  carbs = (nutritionData['carbs'] ?? 0.0).toString();
 
                   print(
                       'INGREDIENT ADD: Processed values - calories=$calories, protein=$protein, fat=$fat, carbs=$carbs');
@@ -4278,32 +4303,10 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                       'calories': calories,
                       'protein': protein,
                       'fat': fat,
-                      'carbs': carbs
+                      'carbs': carbs,
+                      'nutrition':
+                          nutritionData // Add the complete nutrition data with micronutrients
                     };
-
-                    // Add vitamins and minerals to the ingredient if available
-                    if (processedNutritionData.containsKey('vitamins') &&
-                        processedNutritionData['vitamins'] is Map) {
-                      newIngredient['vitamins'] =
-                          processedNutritionData['vitamins'];
-                      print(
-                          'INGREDIENT ADD: Added vitamins to ingredient with mcg units for A and D');
-                    }
-
-                    if (processedNutritionData.containsKey('minerals') &&
-                        processedNutritionData['minerals'] is Map) {
-                      newIngredient['minerals'] =
-                          processedNutritionData['minerals'];
-                      print('INGREDIENT ADD: Added minerals to ingredient');
-                    }
-
-                    if (processedNutritionData.containsKey('other_nutrients') &&
-                        processedNutritionData['other_nutrients'] is Map) {
-                      newIngredient['other_nutrients'] =
-                          processedNutritionData['other_nutrients'];
-                      print(
-                          'INGREDIENT ADD: Added other nutrients to ingredient');
-                    }
 
                     // Make sure we're using the addIngredientToList method that handles truncation
                     _addIngredientToList(newIngredient);
@@ -4717,6 +4720,23 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
       print('INGREDIENT ADD: Adding new ingredient: $newIngredient');
 
+      // Store all micronutrient data in the ingredient object
+      Map<String, dynamic> micronutrients = {};
+
+      // Extract all keys that aren't the standard macronutrients
+      for (var key in newIngredient.keys) {
+        if (!['name', 'amount', 'calories', 'protein', 'fat', 'carbs']
+            .contains(key)) {
+          micronutrients[key] = newIngredient[key];
+        }
+      }
+
+      // Add micronutrients as a separate field if they exist
+      if (micronutrients.isNotEmpty) {
+        newIngredient['micronutrients'] = micronutrients;
+        print('INGREDIENT ADD: Stored micronutrients: $micronutrients');
+      }
+
       // Add the ingredient
       setState(() {
         _ingredients.add(newIngredient);
@@ -4741,331 +4761,549 @@ class _FoodCardOpenState extends State<FoodCardOpen>
             '[${i + 1}] ${_ingredients[i]['name']} - ${_ingredients[i]['amount']} - ${_ingredients[i]['calories']} kcal');
       }
 
-      // Calculate total nutrition from all ingredients
+      // Update nutrition values locally without saving
+      _markAsUnsaved();
       _calculateTotalNutrition();
 
-      // Save the data immediately to ensure it's reflected in the Nutrition screen
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _saveData();
-      });
+      // Update Nutrition.dart with micronutrient data
+      _updateNutritionDartValues(newIngredient, isAddition: true);
     } catch (e) {
       print('ERROR adding ingredient to list: $e');
     }
   }
 
-  // Calculate total nutrition values from all ingredients
-  void _calculateTotalNutrition() {
-    if (_ingredients.isEmpty) {
-      // If no ingredients, set default values
-      String oldCalories = _calories;
-      String oldProtein = _protein;
-      String oldFat = _fat;
-      String oldCarbs = _carbs;
+  // Helper method to update Nutrition.dart with ingredient micronutrient data
+  void _updateNutritionDartValues(Map<String, dynamic> ingredient,
+      {bool isAddition = true}) {
+    try {
+      print('DEBUG: Updating Nutrition.dart with ingredient: $ingredient');
 
-      setState(() {
-        _calories = "0";
-        _protein = "0";
-        _fat = "0";
-        _carbs = "0";
+      // Create a map to hold all nutrients including micronutrients
+      Map<String, dynamic> allNutrients = {};
 
-        // Only mark as unsaved if values actually changed
-        if (_calories != oldCalories ||
-            _protein != oldProtein ||
-            _fat != oldFat ||
-            _carbs != oldCarbs) {
-          print('Nutrition values changed, marking as unsaved');
-          _hasUnsavedChanges = true;
+      // First, check if the ingredient has a 'nutrition' object with micronutrients
+      if (ingredient.containsKey('nutrition') &&
+          ingredient['nutrition'] is Map) {
+        Map nutritionObj = ingredient['nutrition'];
+        nutritionObj.forEach((key, value) {
+          if (value != null &&
+              !['calories', 'protein', 'fat', 'carbs'].contains(key)) {
+            // Convert to numeric value
+            double numValue = 0.0;
+            if (value is num) {
+              numValue = value.toDouble();
+            } else if (value is String) {
+              numValue = double.tryParse(value) ?? 0.0;
+            }
+
+            if (numValue > 0.0) {
+              allNutrients[key] = numValue;
+              print('Added nutrient from nutrition object: $key = $numValue');
+            }
+          }
+        });
+      }
+
+      // Then check for direct micronutrients at the root level
+      for (var key in ingredient.keys) {
+        if (![
+          'name',
+          'amount',
+          'calories',
+          'protein',
+          'fat',
+          'carbs',
+          'micronutrients',
+          'nutrition'
+        ].contains(key)) {
+          double value = double.tryParse(ingredient[key].toString()) ?? 0.0;
+          if (value != 0.0) {
+            allNutrients[key] = value;
+            print('Added nutrient from root: $key = $value');
+          }
+        }
+      }
+
+      // Then check for micronutrients in the dedicated field if it exists
+      if (ingredient.containsKey('micronutrients') &&
+          ingredient['micronutrients'] is Map<String, dynamic>) {
+        Map<String, dynamic> micronutrients = ingredient['micronutrients'];
+        micronutrients.forEach((key, value) {
+          double numValue = double.tryParse(value.toString()) ?? 0.0;
+          if (numValue != 0.0) {
+            allNutrients[key] = numValue;
+            print('Added nutrient from micronutrients map: $key = $numValue');
+          }
+        });
+      }
+
+      // Specifically check for and explicitly add known micronutrients that might be in the root
+      final knownMicronutrients = [
+        'vitamin_a',
+        'vitamin_c',
+        'vitamin_d',
+        'vitamin_e',
+        'vitamin_k',
+        'vitamin_b1',
+        'thiamin',
+        'vitamin_b2',
+        'riboflavin',
+        'vitamin_b3',
+        'niacin',
+        'vitamin_b5',
+        'pantothenic_acid',
+        'vitamin_b6',
+        'pyridoxine',
+        'vitamin_b7',
+        'biotin',
+        'vitamin_b9',
+        'folate',
+        'folic_acid',
+        'vitamin_b12',
+        'cobalamin',
+      ];
+
+      for (var nutrient in knownMicronutrients) {
+        if (ingredient.containsKey(nutrient)) {
+          double value =
+              double.tryParse(ingredient[nutrient].toString()) ?? 0.0;
+          if (value != 0.0) {
+            allNutrients[nutrient] = value;
+            print('Added known micronutrient: $nutrient = $value');
+          }
+        }
+      }
+
+      // Add main nutrients too
+      ['protein', 'fat', 'carbs'].forEach((nutrient) {
+        if (ingredient.containsKey(nutrient)) {
+          double value =
+              double.tryParse(ingredient[nutrient].toString()) ?? 0.0;
+          if (value != 0.0) {
+            allNutrients[nutrient] = value;
+          }
         }
       });
-      return;
-    }
 
-    // Sum up all nutritional values from ingredients - use more efficient loops and calculations
-    double totalCalories = 0;
-    double totalProtein = 0;
-    double totalFat = 0;
-    double totalCarbs = 0;
+      // If no nutrients found, skip update
+      if (allNutrients.isEmpty) {
+        print('No nutrients found in ingredient to update Nutrition.dart');
+        return;
+      }
 
-    // Save old values for comparison
-    String oldCalories = _calories;
-    String oldProtein = _protein;
-    String oldFat = _fat;
-    String oldCarbs = _carbs;
+      // If this is for deletion, negate all values
+      if (!isAddition) {
+        allNutrients.forEach((key, value) {
+          allNutrients[key] = -value;
+        });
+      }
 
-    // Process all ingredients in a single loop - more efficient
-    final int ingredientCount = _ingredients.length;
-    print(
-        'Calculating nutrition from $ingredientCount ingredients with multiplier $_counter');
-
-    for (int i = 0; i < ingredientCount; i++) {
-      final ingredient = _ingredients[i];
-
-      // Print ingredient info for debugging
       print(
-          'Ingredient ${i + 1}: ${ingredient['name']} - Calories: ${ingredient['calories']}, Protein: ${ingredient['protein']}, Fat: ${ingredient['fat']}, Carbs: ${ingredient['carbs']}');
+          'Updating Nutrition.dart with ${isAddition ? "added" : "removed"} nutrients: $allNutrients');
 
-      // Add calories - multiply by counter
-      if (ingredient.containsKey('calories')) {
-        var calories = ingredient['calories'];
-        double calorieValue = 0;
-        if (calories is String) {
-          calorieValue =
-              double.tryParse(calories.replaceAll(RegExp(r'[^0-9\.]'), '')) ??
-                  0;
-        } else if (calories is num) {
-          calorieValue = calories.toDouble();
+      // Create unique ID for this meal
+      String scanId =
+          'food_nutrition_${_foodName.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}';
+
+      // Save to SharedPreferences
+      _saveMicronutrientsToPrefs(allNutrients, scanId);
+    } catch (e) {
+      print('ERROR updating Nutrition.dart: $e');
+    }
+  }
+
+  // Save micronutrient data to SharedPreferences for Nutrition.dart to use
+  Future<void> _saveMicronutrientsToPrefs(
+      Map<String, dynamic> nutritionData, String scanId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      // Get any existing global nutrition data
+      String? existingDataStr =
+          prefs.getString('PERMANENT_GLOBAL_NUTRITION_DATA');
+      Map<String, dynamic> existingData = {};
+
+      if (existingDataStr != null && existingDataStr.isNotEmpty) {
+        try {
+          existingData = json.decode(existingDataStr);
+          print('Successfully loaded existing nutrition data: $existingData');
+        } catch (e) {
+          print('Error parsing existing nutrition data: $e');
         }
-        totalCalories += calorieValue * _counter;
-        print(
-            'Added ${calorieValue * _counter} calories from ${ingredient['name']}');
+      } else {
+        print('No existing nutrition data found, creating new data');
+        // Initialize with empty categories
+        existingData = {
+          'scanId': scanId,
+          'lastSaved': DateTime.now().millisecondsSinceEpoch,
+          'vitamins': {},
+          'minerals': {},
+          'other': {}
+        };
       }
 
-      // Add protein - multiply by counter
-      if (ingredient.containsKey('protein')) {
-        var protein = ingredient['protein'];
-        double proteinValue = 0;
-        if (protein is String) {
-          proteinValue =
-              double.tryParse(protein.replaceAll(RegExp(r'[^0-9\.]'), '')) ?? 0;
-        } else if (protein is num) {
-          proteinValue = protein.toDouble();
-        }
-        totalProtein += proteinValue * _counter;
-        print(
-            'Added ${proteinValue * _counter} protein from ${ingredient['name']}');
-      }
+      print('SAVING NUTRIENTS TO PREFS: Current data: $existingData');
+      print('SAVING NUTRIENTS TO PREFS: New data: $nutritionData');
 
-      // Add fat - multiply by counter
-      if (ingredient.containsKey('fat')) {
-        var fat = ingredient['fat'];
-        double fatValue = 0;
-        if (fat is String) {
-          fatValue =
-              double.tryParse(fat.replaceAll(RegExp(r'[^0-9\.]'), '')) ?? 0;
-        } else if (fat is num) {
-          fatValue = fat.toDouble();
-        }
-        totalFat += fatValue * _counter;
-        print('Added ${fatValue * _counter} fat from ${ingredient['name']}');
-      }
+      // Create or update vitamins, minerals, and other nutrients based on the new data
+      Map<String, dynamic> vitamins = existingData.containsKey('vitamins')
+          ? Map<String, dynamic>.from(existingData['vitamins'])
+          : {};
 
-      // Add carbs - multiply by counter
-      if (ingredient.containsKey('carbs')) {
-        var carbs = ingredient['carbs'];
-        double carbsValue = 0;
-        if (carbs is String) {
-          carbsValue =
-              double.tryParse(carbs.replaceAll(RegExp(r'[^0-9\.]'), '')) ?? 0;
-        } else if (carbs is num) {
-          carbsValue = carbs.toDouble();
+      Map<String, dynamic> minerals = existingData.containsKey('minerals')
+          ? Map<String, dynamic>.from(existingData['minerals'])
+          : {};
+
+      Map<String, dynamic> other = existingData.containsKey('other')
+          ? Map<String, dynamic>.from(existingData['other'])
+          : {};
+
+      // Update the values based on the new nutritionData
+      _updateNutrientCategory(nutritionData, vitamins, 'vitamins');
+      _updateNutrientCategory(nutritionData, minerals, 'minerals');
+      _updateNutrientCategory(nutritionData, other, 'other');
+
+      // Combine all data back together
+      Map<String, dynamic> updatedData = {
+        'scanId': scanId,
+        'lastSaved': DateTime.now().millisecondsSinceEpoch,
+        'vitamins': vitamins,
+        'minerals': minerals,
+        'other': other,
+      };
+
+      print('SAVING NUTRIENTS TO PREFS: Updated data: $updatedData');
+
+      // Save the updated data
+      await prefs.setString(
+          'PERMANENT_GLOBAL_NUTRITION_DATA', json.encode(updatedData));
+      print('Successfully saved micronutrient data to SharedPreferences');
+
+      // Also save the data with a food-specific key to make sure it persists
+      // Use a consistent key rather than one with a timestamp to ensure persistence
+      String foodSpecificKey =
+          'NUTRITION_DATA_${_foodName.toLowerCase().replaceAll(' ', '_')}';
+      await prefs.setString(foodSpecificKey, json.encode(updatedData));
+      print('Saved nutrition data with food-specific key: $foodSpecificKey');
+
+      // To ensure Nutrition.dart screen updates immediately, also save to the screen-specific key
+      await prefs.setString('NUTRITION_SCREEN_DATA', json.encode(updatedData));
+      print('Saved nutrition data for immediate screen update');
+
+      // Force an update to any visible screens - set a flag
+      await prefs.setBool('NUTRITION_DATA_UPDATED', true);
+    } catch (e) {
+      print('ERROR saving micronutrients to SharedPreferences: $e');
+    }
+  }
+
+  // Helper to update a nutrient category (vitamins, minerals, or other)
+  void _updateNutrientCategory(Map<String, dynamic> nutritionData,
+      Map<String, dynamic> category, String categoryType) {
+    // Mapping of API keys to category keys
+    Map<String, Map<String, String>> categoryMappings = {
+      'vitamins': {
+        'vitamin_a': 'Vitamin A',
+        'vitamin_c': 'Vitamin C',
+        'vitamin_d': 'Vitamin D',
+        'vitamin_e': 'Vitamin E',
+        'vitamin_k': 'Vitamin K',
+        'vitamin_b1': 'Vitamin B1',
+        'thiamin': 'Vitamin B1',
+        'vitamin_b2': 'Vitamin B2',
+        'riboflavin': 'Vitamin B2',
+        'vitamin_b3': 'Vitamin B3',
+        'niacin': 'Vitamin B3',
+        'vitamin_b5': 'Vitamin B5',
+        'pantothenic_acid': 'Vitamin B5',
+        'vitamin_b6': 'Vitamin B6',
+        'pyridoxine': 'Vitamin B6',
+        'vitamin_b7': 'Vitamin B7',
+        'biotin': 'Vitamin B7',
+        'vitamin_b9': 'Vitamin B9',
+        'folate': 'Vitamin B9',
+        'folic_acid': 'Vitamin B9',
+        'vitamin_b12': 'Vitamin B12',
+        'cobalamin': 'Vitamin B12',
+      },
+      'minerals': {
+        'calcium': 'Calcium',
+        'iron': 'Iron',
+        'magnesium': 'Magnesium',
+        'phosphorus': 'Phosphorus',
+        'potassium': 'Potassium',
+        'sodium': 'Sodium',
+        'zinc': 'Zinc',
+        'copper': 'Copper',
+        'manganese': 'Manganese',
+        'selenium': 'Selenium',
+        'chloride': 'Chloride',
+        'chromium': 'Chromium',
+        'iodine': 'Iodine',
+        'molybdenum': 'Molybdenum',
+        'fluoride': 'Fluoride',
+      },
+      'other': {
+        'fiber': 'Fiber',
+        'dietary_fiber': 'Fiber',
+        'fibre': 'Fiber',
+        'cholesterol': 'Cholesterol',
+        'sugar': 'Sugar',
+        'sugars': 'Sugar',
+        'total_sugar': 'Sugar',
+        'saturated_fat': 'Saturated Fats',
+        'saturated_fats': 'Saturated Fats',
+        'sat_fat': 'Saturated Fats',
+        'omega_3': 'Omega-3',
+        'omega3': 'Omega-3',
+        'omega_6': 'Omega-6',
+        'omega6': 'Omega-6',
+      }
+    };
+
+    // Default units for each nutrient category
+    Map<String, String> defaultUnits = {
+      'Vitamin A': 'mcg',
+      'Vitamin C': 'mg',
+      'Vitamin D': 'mcg',
+      'Vitamin E': 'mg',
+      'Vitamin K': 'mcg',
+      'Vitamin B1': 'mg',
+      'Vitamin B2': 'mg',
+      'Vitamin B3': 'mg',
+      'Vitamin B5': 'mg',
+      'Vitamin B6': 'mg',
+      'Vitamin B7': 'mcg',
+      'Vitamin B9': 'mcg',
+      'Vitamin B12': 'mcg',
+      'Calcium': 'mg',
+      'Iron': 'mg',
+      'Magnesium': 'mg',
+      'Phosphorus': 'mg',
+      'Potassium': 'mg',
+      'Sodium': 'mg',
+      'Zinc': 'mg',
+      'Copper': 'mcg',
+      'Manganese': 'mg',
+      'Selenium': 'mcg',
+      'Chloride': 'mg',
+      'Chromium': 'mcg',
+      'Iodine': 'mcg',
+      'Molybdenum': 'mcg',
+      'Fluoride': 'mg',
+      'Fiber': 'g',
+      'Cholesterol': 'mg',
+      'Sugar': 'g',
+      'Saturated Fats': 'g',
+      'Omega-3': 'mg',
+      'Omega-6': 'g',
+    };
+
+    // Default recommended daily values for each nutrient
+    Map<String, double> defaultDailyValues = {
+      'Vitamin A': 700.0,
+      'Vitamin C': 75.0,
+      'Vitamin D': 15.0,
+      'Vitamin E': 15.0,
+      'Vitamin K': 90.0,
+      'Vitamin B1': 1.1,
+      'Vitamin B2': 1.1,
+      'Vitamin B3': 14.0,
+      'Vitamin B5': 5.0,
+      'Vitamin B6': 1.3,
+      'Vitamin B7': 30.0,
+      'Vitamin B9': 400.0,
+      'Vitamin B12': 2.4,
+      'Calcium': 1000.0,
+      'Iron': 18.0,
+      'Magnesium': 400.0,
+      'Phosphorus': 700.0,
+      'Potassium': 3500.0,
+      'Sodium': 2300.0,
+      'Zinc': 11.0,
+      'Copper': 900.0,
+      'Manganese': 2.3,
+      'Selenium': 55.0,
+      'Chloride': 2300.0,
+      'Chromium': 35.0,
+      'Iodine': 150.0,
+      'Molybdenum': 45.0,
+      'Fluoride': 4.0,
+      'Fiber': 30.0,
+      'Cholesterol': 300.0,
+      'Sugar': 100.0,
+      'Saturated Fats': 22.0,
+      'Omega-3': 1500.0,
+      'Omega-6': 14.0,
+    };
+
+    // Get the relevant mappings for this category
+    Map<String, String> mappings = categoryMappings[categoryType] ?? {};
+
+    // For each key in nutritionData, check if it belongs to this category
+    nutritionData.forEach((key, value) {
+      String keyLower = key.toLowerCase();
+
+      // Find a matching key in the mappings
+      for (var entry in mappings.entries) {
+        if (keyLower.contains(entry.key)) {
+          // Found a match, update the category
+          String categoryKey = entry.value;
+
+          // Convert the value to a numeric value
+          double amount = double.tryParse(value.toString()) ?? 0.0;
+
+          // Only proceed if we have a valid amount
+          if (amount != 0.0) {
+            print('Updating $categoryType - $categoryKey with amount: $amount');
+
+            // If the category doesn't have this key yet, initialize it
+            if (!category.containsKey(categoryKey)) {
+              // Get the default unit and daily value for this nutrient
+              String unit = defaultUnits[categoryKey] ?? 'g';
+              double targetValue = defaultDailyValues[categoryKey] ?? 100.0;
+
+              category[categoryKey] = {
+                'name': categoryKey,
+                'value': '0/$targetValue $unit',
+                'percent': '0%',
+                'progress': 0.0,
+                'progressColor': {'r': 255, 'g': 0, 'b': 0, 'opacity': 1.0},
+                'hasInfo': false,
+              };
+              print(
+                  'Created new nutrient entry for $categoryKey: ${category[categoryKey]}');
+            }
+
+            // Get the current progress and value
+            double currentProgress = 0.0;
+            double currentValue = 0.0;
+
+            if (category[categoryKey] is Map) {
+              if (category[categoryKey].containsKey('progress')) {
+                currentProgress = double.tryParse(
+                        category[categoryKey]['progress'].toString()) ??
+                    0.0;
+              }
+
+              // Extract current value from the value string
+              if (category[categoryKey].containsKey('value')) {
+                String valueString = category[categoryKey]['value'].toString();
+                List<String> valueParts = valueString.split('/');
+                currentValue = double.tryParse(valueParts[0]) ?? 0.0;
+              }
+            }
+
+            // Extract target value and unit from the value string
+            String valueString = category[categoryKey]['value'];
+            List<String> valueParts = valueString.split('/');
+            String targetWithUnit =
+                valueParts.length > 1 ? valueParts[1] : '100 g';
+
+            // Parse target value and unit
+            RegExp regExp = RegExp(r'(\d+\.?\d*)\s*([a-zA-Z]+)');
+            Match? match = regExp.firstMatch(targetWithUnit);
+            double targetValue = defaultDailyValues[categoryKey] ?? 100.0;
+            String unit = defaultUnits[categoryKey] ?? 'g';
+
+            if (match != null) {
+              targetValue =
+                  double.tryParse(match.group(1) ?? '100') ?? targetValue;
+              unit = match.group(2) ?? unit;
+            }
+
+            // Calculate the new current value and progress
+            double newValue = currentValue + amount;
+            double newProgress = targetValue > 0 ? newValue / targetValue : 0.0;
+            if (newProgress > 1.0) newProgress = 1.0; // Cap at 100%
+
+            // Update the category with the new values
+            if (category[categoryKey] is Map) {
+              category[categoryKey]['progress'] = newProgress;
+              category[categoryKey]['value'] = '$newValue/$targetValue $unit';
+
+              // Update percentage
+              int percentValue = (newProgress * 100).round();
+              category[categoryKey]['percent'] = '$percentValue%';
+
+              // Update color based on progress
+              if (newProgress < 0.5) {
+                category[categoryKey]['progressColor'] = {
+                  'r': 255,
+                  'g': 0,
+                  'b': 0,
+                  'opacity': 1.0
+                };
+              } else if (newProgress < 0.75) {
+                category[categoryKey]['progressColor'] = {
+                  'r': 243,
+                  'g': 217,
+                  'b': 96,
+                  'opacity': 1.0
+                };
+              } else {
+                category[categoryKey]['progressColor'] = {
+                  'r': 120,
+                  'g': 198,
+                  'b': 122,
+                  'opacity': 1.0
+                };
+              }
+
+              print(
+                  'Updated nutrient $categoryKey: New value=${category[categoryKey]['value']}, Progress=${category[categoryKey]['progress']}');
+            }
+            break;
+          }
         }
-        totalCarbs += carbsValue * _counter;
-        print(
-            'Added ${carbsValue * _counter} carbs from ${ingredient['name']}');
+      }
+    });
+  }
+
+  // Cleanup helper methods we no longer need
+  // Helper to check if an ingredient contains any micronutrients directly at the root
+  bool _containsMicronutrients(Map<String, dynamic> ingredient) {
+    // Standard keys that are not micronutrients
+    final standardKeys = [
+      'name',
+      'amount',
+      'calories',
+      'protein',
+      'fat',
+      'carbs',
+      'micronutrients'
+    ];
+
+    // Check each key in the ingredient
+    for (var key in ingredient.keys) {
+      if (!standardKeys.contains(key)) {
+        return true;
       }
     }
+    return false;
+  }
 
-    // Update state with calculated totals using standard rounding (0-0.4 down, 0.5-0.9 up)
-    // Calculate new values before setState to minimize state updates
-    final String newCalories = totalCalories.round().toString();
-    final String newProtein = totalProtein.round().toString();
-    final String newFat = totalFat.round().toString();
-    final String newCarbs = totalCarbs.round().toString();
+  // Helper to extract micronutrients from an ingredient object's root level
+  Map<String, dynamic> _extractMicronutrientsFromIngredient(
+      Map<String, dynamic> ingredient) {
+    Map<String, dynamic> micronutrients = {};
+    final standardKeys = [
+      'name',
+      'amount',
+      'calories',
+      'protein',
+      'fat',
+      'carbs',
+      'micronutrients'
+    ];
 
-    print(
-        'New calculated nutrition totals: Calories=$newCalories, Protein=$newProtein, Fat=$newFat, Carbs=$newCarbs');
-
-    // Check if values actually changed before updating state
-    final bool hasChanged = (newCalories != oldCalories ||
-        newProtein != oldProtein ||
-        newFat != oldFat ||
-        newCarbs != oldCarbs);
-
-    setState(() {
-      _calories = newCalories;
-      _protein = newProtein;
-      _fat = newFat;
-      _carbs = newCarbs;
-
-      // Only mark as unsaved if values actually changed
-      if (hasChanged) {
-        print('Nutrition values changed, marking as unsaved');
-        _hasUnsavedChanges = true;
+    ingredient.forEach((key, value) {
+      if (!standardKeys.contains(key)) {
+        micronutrients[key] = value;
       }
     });
 
-    print(
-        'NUTRITION TOTALS: Calories=$_calories, Protein=$_protein, Fat=$_fat, Carbs=$_carbs');
-  }
-
-  // Helper method to show API error dialog in premium style
-  void _showApiErrorDialog() {
-    _showStandardDialog(
-      title: "Service Unavailable",
-      message:
-          "The food modification service is currently unavailable. Please try again later.",
-      positiveButtonText: "OK",
-    );
-  }
-
-  // Helper method to show unclear input error dialog in premium style
-  void _showUnclearInputDialog() {
-    _showStandardDialog(
-      title: "Invalid Ingredient",
-      message:
-          "Please enter a valid food name and serving size that we can calculate nutrition for",
-      positiveButtonText: "Try Again",
-      positiveButtonIcon:
-          'assets/images/edit.png', // Make sure this asset exists
-      onPositivePressed: () {
-        Navigator.of(context).pop();
-        _showAddIngredientDialog();
-      },
-    );
-  }
-
-  // Method to show the "Fix Manually" dialog
-  void _showFixManuallyDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
-      builder: (BuildContext context) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            textSelectionTheme: TextSelectionThemeData(
-              selectionColor: Colors.grey.withOpacity(0.3),
-              cursorColor: Colors.black,
-              selectionHandleColor: Colors.black,
-            ),
-          ),
-          child: Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.white,
-            insetPadding: EdgeInsets.symmetric(horizontal: 32),
-            child: Container(
-              width: 326, // Exactly 326px as specified
-              height: 360, // Adjusted height for proper spacing
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Title
-                        SizedBox(height: 14),
-                        Text(
-                          "Fix Manually",
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'SF Pro Display',
-                          ),
-                        ),
-
-                        // Use Expanded to center the image and text as one group
-                        Expanded(
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Pencil icon - exactly 43x43
-                                Image.asset(
-                                  'assets/images/pencilicon.png',
-                                  width: 43.0,
-                                  height: 43.0,
-                                  color: Colors.black,
-                                ),
-
-                                // 28px gap between image and text
-                                SizedBox(height: 28),
-
-                                // Instructions text - already size 18
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 25),
-                                  child: Text(
-                                    "Tap any item to change its name, calories, macros or serving sizes",
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontFamily: 'SF Pro Display',
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Fix Now button - match "Add" popup spacing
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Container(
-                            width: 280,
-                            height: 48,
-                            margin: EdgeInsets.only(
-                                bottom: 24), // Same margin as Add popup
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                            child: TextButton(
-                              onPressed: () {
-                                // Handle the "Fix Now" action
-                                Navigator.pop(context);
-                                // Set edit mode to show teal outlines
-                                setState(() {
-                                  _isEditMode = true;
-                                });
-                              },
-                              style: ButtonStyle(
-                                overlayColor: MaterialStateProperty.all(
-                                    Colors.transparent),
-                              ),
-                              child: const Text(
-                                'Fix Now',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w500,
-                                  fontFamily: '.SF Pro Display',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Close button
-                  Positioned(
-                    top:
-                        23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
-                    right: 20,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: Image.asset(
-                        'assets/images/closeicon.png',
-                        width: 19,
-                        height: 19,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    return micronutrients;
   }
 
   // Method to show edit and delete options for an ingredient
@@ -5225,13 +5463,23 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                                         borderRadius: BorderRadius.circular(20),
                                         onTap: () {
                                           Navigator.pop(context);
-                                          _showDeleteIngredientConfirmation(
-                                              name,
-                                              amount,
-                                              calories,
-                                              protein,
-                                              fat,
-                                              carbs);
+                                          // Find the ingredient by matching all properties
+                                          int indexToRemove = -1;
+                                          for (int i = 0;
+                                              i < _ingredients.length;
+                                              i++) {
+                                            if (_ingredients[i]['name'] ==
+                                                    name &&
+                                                _ingredients[i]['amount'] ==
+                                                    amount) {
+                                              indexToRemove = i;
+                                              break;
+                                            }
+                                          }
+                                          if (indexToRemove != -1) {
+                                            _handleIngredientDeletion(
+                                                indexToRemove);
+                                          }
                                         },
                                       ),
                                     ),
@@ -6045,8 +6293,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                               borderRadius: BorderRadius.circular(20),
                               onTap: () {
                                 Navigator.pop(context);
-                                _deleteIngredient(name, amount, calories,
-                                    protein, fat, carbs);
+                                _deleteIngredientByProperties(name, amount,
+                                    calories, protein, fat, carbs);
                               },
                             ),
                           ),
@@ -6116,8 +6364,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
   }
 
   // Method to delete an ingredient and update nutrition values
-  void _deleteIngredient(String name, String amount, String calories,
-      String protein, String fat, String carbs) {
+  void _deleteIngredientByProperties(String name, String amount,
+      String calories, String protein, String fat, String carbs) {
     // Find the ingredient in the _ingredients list
     int indexToRemove = -1;
 
@@ -6130,27 +6378,21 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     }
 
     if (indexToRemove >= 0) {
-      print('BEFORE deletion - Ingredients count: ${_ingredients.length}');
-      print(
-          'About to delete ingredient at index $indexToRemove: $name ($amount)');
-
       setState(() {
         // Remove the ingredient
         _ingredients.removeAt(indexToRemove);
         _markAsUnsaved(); // Mark as having unsaved changes
 
+        // Recalculate total nutrition values
+        _calculateTotalNutrition();
+
         // Log the deletion for debugging
-        print('AFTER deletion - Ingredients count: ${_ingredients.length}');
         print(
             'Deleted ingredient: $name ($amount) - $calories kcal, P:$protein, F:$fat, C:$carbs');
       });
 
-      // Ensure nutrition values are recalculated
+      // Instead of saving immediately, just update the Nutrition display
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        print('Recalculating nutrition after ingredient deletion');
-        // Recalculate total nutrition values
-        _calculateTotalNutrition();
-
         // Only update the nutrition display without permanently saving
         _updateNutritionDisplay();
       });
@@ -7316,7 +7558,7 @@ class _FoodCardOpenState extends State<FoodCardOpen>
       context: context,
       title: title,
       message: message,
-      positiveButtonText: positiveButtonText,
+      positiveButtonText: positiveButtonText ?? 'OK',
       positiveButtonIcon: positiveButtonIcon,
       onPositivePressed: onPositivePressed,
       negativeButtonText: negativeButtonText,
@@ -7432,32 +7674,14 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
     // Extract and add additional nutrition data from ingredients if available
     if (_ingredients.isNotEmpty) {
-      // Extract both old format nutrients and structured micronutrients from ingredients
+      // Check if ingredients contain additional micronutrient information
       Map<String, dynamic> otherNutrients = _extractOtherNutrients();
-      Map<String, dynamic> micronutrients = _extractMicronutrients();
 
       // Add any nutrients found in ingredients that weren't already added
       otherNutrients.forEach((key, value) {
-        if (!nutritionData.containsKey(key)) {
-          nutritionData[key] = value;
-        }
+        // Always use the latest values from ingredients
+        nutritionData[key] = value;
       });
-
-      // Add structured micronutrients (vitamins, minerals)
-      if (micronutrients.containsKey('vitamins') &&
-          micronutrients['vitamins'] is Map) {
-        nutritionData['vitamins'] = micronutrients['vitamins'];
-      }
-
-      if (micronutrients.containsKey('minerals') &&
-          micronutrients['minerals'] is Map) {
-        nutritionData['minerals'] = micronutrients['minerals'];
-      }
-
-      if (micronutrients.containsKey('other_nutrients') &&
-          micronutrients['other_nutrients'] is Map) {
-        nutritionData['other_nutrients'] = micronutrients['other_nutrients'];
-      }
     }
 
     // Create a truly consistent ID for this specific food that will never change
@@ -7466,11 +7690,6 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     String caloriesId = _calories.replaceAll('.', '_');
     // Construct a simple deterministic ID that will be the same every time for this food
     String foodSpecificScanId = "food_nutrition_${foodName}_${caloriesId}";
-
-    // Apply our conversion to ensure all IU values are converted to mcg before sending to Nutrition screen
-    nutritionData = _convertVitaminValuesFromAPI(nutritionData);
-    print(
-        "Converted vitamin A and D values from IU to mcg before passing to Nutrition.dart");
 
     print("Passing nutrition data to Nutrition.dart: $nutritionData");
     print("Using PERSISTENT food-specific scan ID: $foodSpecificScanId");
@@ -7623,6 +7842,29 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     for (int i = 0; i < ingredientCount; i++) {
       final ingredient = _ingredients[i];
 
+      // First, check if the ingredient has a 'nutrition' object
+      if (ingredient.containsKey('nutrition') &&
+          ingredient['nutrition'] is Map) {
+        Map nutritionObj = ingredient['nutrition'];
+
+        // Extract all fields from nutrition object
+        nutritionObj.forEach((key, value) {
+          if (value != null &&
+              !['calories', 'protein', 'fat', 'carbs'].contains(key)) {
+            // If the nutrient is already in the result, add the values
+            if (result.containsKey(key)) {
+              double existingValue = _parseNutritionValue(result[key]);
+              double newValue = _parseNutritionValue(value);
+              result[key] = (existingValue + newValue).toString();
+            } else {
+              // Add with the key directly
+              result[key] = value.toString();
+            }
+            print('Extracted $key: $value from nutrition object');
+          }
+        });
+      }
+
       // First check for common nutrient fields - use direct indexing
       for (int j = 0; j < commonNutrients.length; j++) {
         final String field = commonNutrients[j];
@@ -7764,9 +8006,8 @@ class _FoodCardOpenState extends State<FoodCardOpen>
 
       // Add any nutrients found in ingredients that weren't already added
       otherNutrients.forEach((key, value) {
-        if (!nutritionData.containsKey(key)) {
-          nutritionData[key] = value;
-        }
+        // Always use the latest values from ingredients
+        nutritionData[key] = value;
       });
     }
 
@@ -7803,685 +8044,354 @@ class _FoodCardOpenState extends State<FoodCardOpen>
     });
   }
 
-  // Helper method to get the appropriate unit for a vitamin
-  String _getUnitForVitamin(String vitaminName) {
-    vitaminName = vitaminName.toLowerCase();
+  // Handle ingredient deletion with micronutrient tracking
+  void _handleIngredientDeletion(int index) {
+    if (index >= 0 && index < _ingredients.length) {
+      // Get the ingredient before removing it
+      Map<String, dynamic> deletedIngredient = _ingredients[index];
 
-    // Common vitamin units - always return 'mcg' for Vitamin A and D for consistency
-    if (vitaminName.contains('vitamin_d') || vitaminName.contains('vitamin d'))
-      return 'mcg'; // Changed from 'IU' to 'mcg'
-    if (vitaminName.contains('vitamin_a') || vitaminName.contains('vitamin a'))
-      return 'mcg'; // Changed from 'IU' to 'mcg'
-    if (vitaminName.contains('vitamin_e') || vitaminName.contains('vitamin e'))
-      return 'mg';
-    if (vitaminName.contains('vitamin_k') || vitaminName.contains('vitamin k'))
-      return 'μg';
-    if (vitaminName.contains('vitamin_c') || vitaminName.contains('vitamin c'))
-      return 'mg';
-    if (vitaminName.contains('vitamin_b12') ||
-        vitaminName.contains('vitamin b12')) return 'μg';
-    if (vitaminName.contains('folate') ||
-        vitaminName.contains('folic') ||
-        vitaminName.contains('vitamin_b9') ||
-        vitaminName.contains('vitamin b9')) return 'μg';
-    if (vitaminName.contains('niacin') ||
-        vitaminName.contains('vitamin_b3') ||
-        vitaminName.contains('vitamin b3')) return 'mg';
-    if (vitaminName.contains('riboflavin') ||
-        vitaminName.contains('vitamin_b2') ||
-        vitaminName.contains('vitamin b2')) return 'mg';
-    if (vitaminName.contains('thiamin') ||
-        vitaminName.contains('vitamin_b1') ||
-        vitaminName.contains('vitamin b1')) return 'mg';
+      // Update Nutrition.dart with the deleted ingredient's micronutrients
+      // (using isAddition: false to subtract the values)
+      _updateNutritionDartValues(deletedIngredient, isAddition: false);
 
-    // Default unit for vitamins
-    return 'mg';
-  }
-
-  // Helper method to get the appropriate unit for a mineral
-  String _getUnitForMineral(String mineralName) {
-    mineralName = mineralName.toLowerCase();
-
-    // Common mineral units
-    if (mineralName.contains('sodium') ||
-        mineralName.contains('potassium') ||
-        mineralName.contains('calcium') ||
-        mineralName.contains('phosphorus') ||
-        mineralName.contains('magnesium')) return 'mg';
-    if (mineralName.contains('iron') ||
-        mineralName.contains('zinc') ||
-        mineralName.contains('manganese') ||
-        mineralName.contains('copper')) return 'mg';
-    if (mineralName.contains('selenium') ||
-        mineralName.contains('chromium') ||
-        mineralName.contains('molybdenum') ||
-        mineralName.contains('iodine')) return 'μg';
-
-    // Default unit for minerals
-    return 'mg';
-  }
-
-  // Helper method to get the appropriate unit for other nutrients
-  String _getUnitForNutrient(String nutrientName) {
-    nutrientName = nutrientName.toLowerCase();
-
-    // Common nutrient units
-    if (nutrientName.contains('fiber') ||
-        nutrientName.contains('sugar') ||
-        nutrientName.contains('starch')) return 'g';
-    if (nutrientName.contains('cholesterol')) return 'mg';
-    if (nutrientName.contains('caffeine')) return 'mg';
-    if (nutrientName.contains('alcohol')) return 'g';
-
-    // Default unit
-    return 'g';
-  }
-
-  // Helper method to convert Vitamin D from IU to mcg (1 IU = 0.025 mcg)
-  double _convertVitaminDIUtoMcg(double iu) {
-    return iu * 0.025;
-  }
-
-  // Helper method to convert Vitamin A from IU to mcg (1 IU = 0.3 mcg)
-  double _convertVitaminAIUtoMcg(double iu) {
-    return iu * 0.3;
-  }
-
-  // Helper method to standardize nutrient units to match what's used in Nutrition.dart
-  Map<String, dynamic> _standardizeNutrientUnits(
-      Map<String, dynamic> nutrientData) {
-    Map<String, dynamic> standardized = Map<String, dynamic>.from(nutrientData);
-
-    // Process vitamins
-    if (standardized.containsKey('vitamins') &&
-        standardized['vitamins'] is Map) {
-      Map<String, dynamic> vitamins =
-          Map<String, dynamic>.from(standardized['vitamins']);
-      Map<String, dynamic> convertedVitamins = {};
-
-      vitamins.forEach((key, value) {
-        // Skip if already in correct format
-        if (value is! Map ||
-            !value.containsKey('amount') ||
-            !value.containsKey('unit')) {
-          return;
-        }
-
-        String normalizedKey = key.toLowerCase();
-        double amount =
-            value['amount'] is num ? (value['amount'] as num).toDouble() : 0.0;
-        String unit = value['unit'] as String? ?? '';
-
-        // Convert to appropriate units used in Nutrition.dart
-        if (normalizedKey == 'vitamin_a' || normalizedKey == 'vitamin a') {
-          if (unit.toUpperCase() == 'IU') {
-            // Convert IU to mcg for Vitamin A
-            amount = _convertVitaminAIUtoMcg(amount);
-            unit = 'mcg';
-            print(
-                'Converted Vitamin A from $amount IU to ${_convertVitaminAIUtoMcg(amount)} mcg');
-          }
-        } else if (normalizedKey == 'vitamin_d' ||
-            normalizedKey == 'vitamin d') {
-          if (unit.toUpperCase() == 'IU') {
-            // Convert IU to mcg for Vitamin D
-            amount = _convertVitaminDIUtoMcg(amount);
-            unit = 'mcg';
-            print(
-                'Converted Vitamin D from $amount IU to ${_convertVitaminDIUtoMcg(amount)} mcg');
-          }
-        }
-
-        // Map API nutrient keys to Nutrition.dart keys
-        String nutritionKey = '';
-        if (normalizedKey == 'vitamin_a' || normalizedKey == 'vitamin a')
-          nutritionKey = 'Vitamin A';
-        else if (normalizedKey == 'vitamin_c' || normalizedKey == 'vitamin c')
-          nutritionKey = 'Vitamin C';
-        else if (normalizedKey == 'vitamin_d' || normalizedKey == 'vitamin d')
-          nutritionKey = 'Vitamin D';
-        else if (normalizedKey == 'vitamin_e' || normalizedKey == 'vitamin e')
-          nutritionKey = 'Vitamin E';
-        else if (normalizedKey == 'vitamin_k' || normalizedKey == 'vitamin k')
-          nutritionKey = 'Vitamin K';
-        else if (normalizedKey == 'thiamin' ||
-            normalizedKey == 'vitamin_b1' ||
-            normalizedKey == 'vitamin b1')
-          nutritionKey = 'Vitamin B1';
-        else if (normalizedKey == 'riboflavin' ||
-            normalizedKey == 'vitamin_b2' ||
-            normalizedKey == 'vitamin b2')
-          nutritionKey = 'Vitamin B2';
-        else if (normalizedKey == 'niacin' ||
-            normalizedKey == 'vitamin_b3' ||
-            normalizedKey == 'vitamin b3')
-          nutritionKey = 'Vitamin B3';
-        else if (normalizedKey == 'pantothenic_acid' ||
-            normalizedKey == 'vitamin_b5' ||
-            normalizedKey == 'vitamin b5')
-          nutritionKey = 'Vitamin B5';
-        else if (normalizedKey == 'vitamin_b6' || normalizedKey == 'vitamin b6')
-          nutritionKey = 'Vitamin B6';
-        else if (normalizedKey == 'biotin' ||
-            normalizedKey == 'vitamin_b7' ||
-            normalizedKey == 'vitamin b7')
-          nutritionKey = 'Vitamin B7';
-        else if (normalizedKey == 'folate' ||
-            normalizedKey == 'folic_acid' ||
-            normalizedKey == 'vitamin_b9' ||
-            normalizedKey == 'vitamin b9')
-          nutritionKey = 'Vitamin B9';
-        else if (normalizedKey == 'vitamin_b12' ||
-            normalizedKey == 'vitamin b12') nutritionKey = 'Vitamin B12';
-
-        // Only add if we have a mapping
-        if (nutritionKey.isNotEmpty) {
-          convertedVitamins[nutritionKey] = {'amount': amount, 'unit': unit};
-        }
+      // Remove the ingredient from the list
+      setState(() {
+        _ingredients.removeAt(index);
+        _hasUnsavedChanges = true; // Mark as having unsaved changes
       });
 
-      standardized['vitamins'] = convertedVitamins;
+      // Recalculate nutrition totals
+      _calculateTotalNutrition();
+
+      // Debug output
+      print(
+          'Deleted ingredient at index $index, remaining: ${_ingredients.length}');
     }
-
-    // Also check for vitamin A and D at the root level and convert if needed
-    // This handles cases where vitamins are not in a 'vitamins' object but at the root
-    if (standardized.containsKey('vitamin_a') ||
-        standardized.containsKey('vitamin a')) {
-      var vitaminA = standardized.containsKey('vitamin_a')
-          ? standardized['vitamin_a']
-          : standardized['vitamin a'];
-      if (vitaminA is Map &&
-          vitaminA.containsKey('amount') &&
-          vitaminA.containsKey('unit')) {
-        double amount = vitaminA['amount'] is num
-            ? (vitaminA['amount'] as num).toDouble()
-            : 0.0;
-        String unit = vitaminA['unit'] as String? ?? '';
-
-        if (unit.toUpperCase() == 'IU') {
-          amount = _convertVitaminAIUtoMcg(amount);
-          unit = 'mcg';
-          print(
-              'Converted root Vitamin A from $amount IU to ${_convertVitaminAIUtoMcg(amount)} mcg');
-        }
-
-        if (!standardized.containsKey('vitamins')) {
-          standardized['vitamins'] = {};
-        }
-        (standardized['vitamins'] as Map<String, dynamic>)['Vitamin A'] = {
-          'amount': amount,
-          'unit': unit
-        };
-      }
-    }
-
-    if (standardized.containsKey('vitamin_d') ||
-        standardized.containsKey('vitamin d')) {
-      var vitaminD = standardized.containsKey('vitamin_d')
-          ? standardized['vitamin_d']
-          : standardized['vitamin d'];
-      if (vitaminD is Map &&
-          vitaminD.containsKey('amount') &&
-          vitaminD.containsKey('unit')) {
-        double amount = vitaminD['amount'] is num
-            ? (vitaminD['amount'] as num).toDouble()
-            : 0.0;
-        String unit = vitaminD['unit'] as String? ?? '';
-
-        if (unit.toUpperCase() == 'IU') {
-          amount = _convertVitaminDIUtoMcg(amount);
-          unit = 'mcg';
-          print(
-              'Converted root Vitamin D from $amount IU to ${_convertVitaminDIUtoMcg(amount)} mcg');
-        }
-
-        if (!standardized.containsKey('vitamins')) {
-          standardized['vitamins'] = {};
-        }
-        (standardized['vitamins'] as Map<String, dynamic>)['Vitamin D'] = {
-          'amount': amount,
-          'unit': unit
-        };
-      }
-    }
-
-    // Process minerals
-    // Rest of method remains the same
-    // ... existing code for processing minerals and other nutrients
-
-    return standardized;
   }
 
-  // Helper method to convert IU values from API to mcg and standardize units
-  Map<String, dynamic> _convertVitaminValuesFromAPI(
-      Map<String, dynamic> apiResponse) {
-    print(
-        "NUTRIENT CONVERSION: Processing API response to convert IU values to mcg");
-    Map<String, dynamic> processedData = Map<String, dynamic>.from(apiResponse);
+  // Calculate total nutrition values from all ingredients
+  void _calculateTotalNutrition() {
+    if (_ingredients.isEmpty) {
+      // If no ingredients, set default values
+      String oldCalories = _calories;
+      String oldProtein = _protein;
+      String oldFat = _fat;
+      String oldCarbs = _carbs;
 
-    // Define vitamins that need conversion from IU to mcg
-    final vitaminAKeys = ['vitamin_a', 'vitamin a', 'vitamin-a'];
-    final vitaminDKeys = ['vitamin_d', 'vitamin d', 'vitamin-d'];
+      setState(() {
+        _calories = "0";
+        _protein = "0";
+        _fat = "0";
+        _carbs = "0";
 
-    // Check for vitamins at the top level
-    for (var vitaminKey in vitaminAKeys) {
-      if (processedData.containsKey(vitaminKey)) {
-        var value = processedData[vitaminKey];
-        if (value is num) {
-          // Convert vitamin A from IU to mcg (1 IU = 0.3 mcg for vitamin A)
-          double convertedValue = (value * 0.3);
-          // Round to one decimal place
-          convertedValue = double.parse(convertedValue.toStringAsFixed(1));
+        // Only mark as unsaved if values actually changed
+        if (_calories != oldCalories ||
+            _protein != oldProtein ||
+            _fat != oldFat ||
+            _carbs != oldCarbs) {
+          print('Nutrition values changed, marking as unsaved');
+          _hasUnsavedChanges = true;
+        }
+      });
+      return;
+    }
 
-          // Replace with structured format including unit
-          processedData[vitaminKey] = {'amount': convertedValue, 'unit': 'mcg'};
-          print(
-              "NUTRIENT CONVERSION: Converted numeric Vitamin A from $value IU to $convertedValue mcg at top level");
-        } else if (value is Map &&
-            value.containsKey('amount') &&
-            value['amount'] is num) {
-          if (value.containsKey('unit') && value['unit'] == 'IU') {
-            double originalAmount = value['amount'].toDouble();
-            double convertedAmount = (originalAmount * 0.3);
-            // Round to one decimal place
-            convertedAmount = double.parse(convertedAmount.toStringAsFixed(1));
+    // Sum up all nutritional values from ingredients - use more efficient loops and calculations
+    double totalCalories = 0;
+    double totalProtein = 0;
+    double totalFat = 0;
+    double totalCarbs = 0;
 
-            processedData[vitaminKey] = {
-              'amount': convertedAmount,
-              'unit': 'mcg'
-            };
-            print(
-                "NUTRIENT CONVERSION: Converted structured Vitamin A from $originalAmount IU to $convertedAmount mcg at top level");
-          }
+    // Save old values for comparison
+    String oldCalories = _calories;
+    String oldProtein = _protein;
+    String oldFat = _fat;
+    String oldCarbs = _carbs;
+
+    // Process all ingredients in a single loop - more efficient
+    final int ingredientCount = _ingredients.length;
+    for (int i = 0; i < ingredientCount; i++) {
+      final ingredient = _ingredients[i];
+
+      // Add calories - multiply by counter
+      if (ingredient.containsKey('calories')) {
+        var calories = ingredient['calories'];
+        if (calories is String) {
+          totalCalories += (double.tryParse(calories) ?? 0) * _counter;
+        } else if (calories is num) {
+          totalCalories += calories.toDouble() * _counter;
+        }
+      }
+
+      // Add protein - multiply by counter
+      if (ingredient.containsKey('protein')) {
+        var protein = ingredient['protein'];
+        if (protein is String) {
+          totalProtein += (double.tryParse(protein) ?? 0) * _counter;
+        } else if (protein is num) {
+          totalProtein += protein.toDouble() * _counter;
+        }
+      }
+
+      // Add fat - multiply by counter
+      if (ingredient.containsKey('fat')) {
+        var fat = ingredient['fat'];
+        if (fat is String) {
+          totalFat += (double.tryParse(fat) ?? 0) * _counter;
+        } else if (fat is num) {
+          totalFat += fat.toDouble() * _counter;
+        }
+      }
+
+      // Add carbs - multiply by counter
+      if (ingredient.containsKey('carbs')) {
+        var carbs = ingredient['carbs'];
+        if (carbs is String) {
+          totalCarbs += (double.tryParse(carbs) ?? 0) * _counter;
+        } else if (carbs is num) {
+          totalCarbs += carbs.toDouble() * _counter;
         }
       }
     }
 
-    // Do the same for Vitamin D
-    for (var vitaminKey in vitaminDKeys) {
-      if (processedData.containsKey(vitaminKey)) {
-        var value = processedData[vitaminKey];
-        if (value is num) {
-          // Convert vitamin D from IU to mcg (1 IU = 0.025 mcg for vitamin D)
-          double convertedValue = (value * 0.025);
-          // Round to one decimal place
-          convertedValue = double.parse(convertedValue.toStringAsFixed(1));
+    // Update state with calculated totals using standard rounding (0-0.4 down, 0.5-0.9 up)
+    // Calculate new values before setState to minimize state updates
+    final String newCalories = totalCalories.round().toString();
+    final String newProtein = totalProtein.round().toString();
+    final String newFat = totalFat.round().toString();
+    final String newCarbs = totalCarbs.round().toString();
 
-          // Replace with structured format including unit
-          processedData[vitaminKey] = {'amount': convertedValue, 'unit': 'mcg'};
-          print(
-              "NUTRIENT CONVERSION: Converted numeric Vitamin D from $value IU to $convertedValue mcg at top level");
-        } else if (value is Map &&
-            value.containsKey('amount') &&
-            value['amount'] is num) {
-          if (value.containsKey('unit') && value['unit'] == 'IU') {
-            double originalAmount = value['amount'].toDouble();
-            double convertedAmount = (originalAmount * 0.025);
-            // Round to one decimal place
-            convertedAmount = double.parse(convertedAmount.toStringAsFixed(1));
+    // Check if values actually changed before updating state
+    final bool hasChanged = (newCalories != oldCalories ||
+        newProtein != oldProtein ||
+        newFat != oldFat ||
+        newCarbs != oldCarbs);
 
-            processedData[vitaminKey] = {
-              'amount': convertedAmount,
-              'unit': 'mcg'
-            };
-            print(
-                "NUTRIENT CONVERSION: Converted structured Vitamin D from $originalAmount IU to $convertedAmount mcg at top level");
-          }
-        }
-      }
-    }
+    setState(() {
+      _calories = newCalories;
+      _protein = newProtein;
+      _fat = newFat;
+      _carbs = newCarbs;
 
-    // Round all other numeric values to one decimal place
-    processedData.forEach((key, value) {
-      if (value is num) {
-        processedData[key] = double.parse(value.toStringAsFixed(1));
-      } else if (value is Map &&
-          value.containsKey('amount') &&
-          value['amount'] is num) {
-        double amount = value['amount'].toDouble();
-        value['amount'] = double.parse(amount.toStringAsFixed(1));
+      // Only mark as unsaved if values actually changed
+      if (hasChanged) {
+        print('Nutrition values changed, marking as unsaved');
+        _hasUnsavedChanges = true;
       }
     });
 
-    // Handle nested vitamins
-    if (processedData.containsKey('vitamins') &&
-        processedData['vitamins'] is Map) {
-      Map<String, dynamic> vitamins =
-          Map<String, dynamic>.from(processedData['vitamins']);
-
-      // Round all vitamin amounts to one decimal place
-      vitamins.forEach((key, value) {
-        if (value is Map &&
-            value.containsKey('amount') &&
-            value['amount'] is num) {
-          double amount = value['amount'].toDouble();
-          value['amount'] = double.parse(amount.toStringAsFixed(1));
-        }
-      });
-
-      processedData['vitamins'] = vitamins;
-    }
-
-    // Handle nested minerals
-    if (processedData.containsKey('minerals') &&
-        processedData['minerals'] is Map) {
-      Map<String, dynamic> minerals =
-          Map<String, dynamic>.from(processedData['minerals']);
-
-      // Round all mineral amounts to one decimal place
-      minerals.forEach((key, value) {
-        if (value is Map &&
-            value.containsKey('amount') &&
-            value['amount'] is num) {
-          double amount = value['amount'].toDouble();
-          value['amount'] = double.parse(amount.toStringAsFixed(1));
-        }
-      });
-
-      processedData['minerals'] = minerals;
-    }
-
-    // Handle nested other nutrients
-    if (processedData.containsKey('other_nutrients') &&
-        processedData['other_nutrients'] is Map) {
-      Map<String, dynamic> otherNutrients =
-          Map<String, dynamic>.from(processedData['other_nutrients']);
-
-      // Round all other nutrient amounts to one decimal place
-      otherNutrients.forEach((key, value) {
-        if (value is Map &&
-            value.containsKey('amount') &&
-            value['amount'] is num) {
-          double amount = value['amount'].toDouble();
-          value['amount'] = double.parse(amount.toStringAsFixed(1));
-        }
-      });
-
-      processedData['other_nutrients'] = otherNutrients;
-    }
-
-    print("NUTRITION CALCULATOR: Converted IU values to mcg: $processedData");
-    return processedData;
+    print(
+        'NUTRITION TOTALS: Calories=$_calories, Protein=$_protein, Fat=$_fat, Carbs=$_carbs');
   }
 
-  // Helper method to extract micronutrients from ingredients in the structured format
-  Map<String, dynamic> _extractMicronutrients() {
-    Map<String, dynamic> result = {};
+  // Helper method to show API error dialog in premium style
+  void _showApiErrorDialog() {
+    _showStandardDialog(
+      title: "Service Unavailable",
+      message:
+          "The food modification service is currently unavailable. Please try again later.",
+      positiveButtonText: "OK",
+    );
+  }
 
-    // Return empty map if no ingredients
-    if (_ingredients.isEmpty) return result;
+  // Helper method to show unclear input error dialog in premium style
+  void _showUnclearInputDialog() {
+    _showStandardDialog(
+      title: "Invalid Ingredient",
+      message:
+          "Please enter a valid food name and serving size that we can calculate nutrition for",
+      positiveButtonText: "Try Again",
+      positiveButtonIcon:
+          'assets/images/edit.png', // Make sure this asset exists
+      onPositivePressed: () {
+        Navigator.of(context).pop();
+        _showAddIngredientDialog();
+      },
+    );
+  }
 
-    // Initialize vitamins, minerals, and other_nutrients maps
-    result['vitamins'] = {};
-    result['minerals'] = {};
-    result['other_nutrients'] = {};
+  // Method to show the "Fix Manually" dialog
+  void _showFixManuallyDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            textSelectionTheme: TextSelectionThemeData(
+              selectionColor: Colors.grey.withOpacity(0.3),
+              cursorColor: Colors.black,
+              selectionHandleColor: Colors.black,
+            ),
+          ),
+          child: Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.white,
+            insetPadding: EdgeInsets.symmetric(horizontal: 32),
+            child: Container(
+              width: 326, // Exactly 326px as specified
+              height: 360, // Adjusted height for proper spacing
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Title
+                        SizedBox(height: 14),
+                        Text(
+                          "Fix Manually",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
 
-    // Process each ingredient
-    for (var ingredient in _ingredients) {
-      // Process vitamins
-      if (ingredient.containsKey('vitamins') && ingredient['vitamins'] is Map) {
-        Map<String, dynamic> vitamins =
-            Map<String, dynamic>.from(ingredient['vitamins']);
+                        // Use Expanded to center the image and text as one group
+                        Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Pencil icon - exactly 43x43
+                                Image.asset(
+                                  'assets/images/pencilicon.png',
+                                  width: 43.0,
+                                  height: 43.0,
+                                  color: Colors.black,
+                                ),
 
-        vitamins.forEach((vitaminKey, vitaminValue) {
-          if (vitaminValue is Map && vitaminValue.containsKey('amount')) {
-            // Get amount and unit
-            double amount = 0.0;
-            String unit = 'mcg';
+                                // 28px gap between image and text
+                                SizedBox(height: 28),
 
-            if (vitaminValue['amount'] is num) {
-              amount = (vitaminValue['amount'] as num).toDouble();
-            } else if (vitaminValue['amount'] is String) {
-              amount =
-                  double.tryParse(vitaminValue['amount'].toString()) ?? 0.0;
-            }
+                                // Instructions text - already size 18
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 25),
+                                  child: Text(
+                                    "Tap any item to change its name, calories, macros or serving sizes",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontFamily: 'SF Pro Display',
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
 
-            if (vitaminValue.containsKey('unit')) {
-              unit = vitaminValue['unit'].toString();
-            }
+                        // Fix Now button - match "Add" popup spacing
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Container(
+                            width: 280,
+                            height: 48,
+                            margin: EdgeInsets.only(
+                                bottom: 24), // Same margin as Add popup
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: TextButton(
+                              onPressed: () {
+                                // Handle the "Fix Now" action
+                                Navigator.pop(context);
+                                // Set edit mode to show teal outlines
+                                setState(() {
+                                  _isEditMode = true;
+                                });
+                              },
+                              style: ButtonStyle(
+                                overlayColor: MaterialStateProperty.all(
+                                    Colors.transparent),
+                              ),
+                              child: const Text(
+                                'Fix Now',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w500,
+                                  fontFamily: '.SF Pro Display',
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-            // Round to one decimal place
-            amount = double.parse(amount.toStringAsFixed(1));
+                  // Close button
+                  Positioned(
+                    top:
+                        23, // Adjusted from 26 to 23 to align with the "Fix Manually" title
+                    right: 20,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Image.asset(
+                        'assets/images/closeicon.png',
+                        width: 19,
+                        height: 19,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-            // Check if vitamin already exists in result
-            if (result['vitamins'].containsKey(vitaminKey)) {
-              // Get existing vitamin data
-              Map<String, dynamic> existingVitamin =
-                  result['vitamins'][vitaminKey];
-              double existingAmount = 0.0;
+  // Helper method to extract nutrition data from an ingredient's 'nutrition' field
+  void _extractFromNutritionField(Map<String, dynamic> ingredient) {
+    // Skip if no nutrition field or if widget is not mounted
+    if (!ingredient.containsKey('nutrition') || !mounted) return;
 
-              if (existingVitamin['amount'] is num) {
-                existingAmount = (existingVitamin['amount'] as num).toDouble();
-              } else if (existingVitamin['amount'] is String) {
-                existingAmount =
-                    double.tryParse(existingVitamin['amount'].toString()) ??
-                        0.0;
-              }
+    // Skip if nutrition is not a Map
+    if (!(ingredient['nutrition'] is Map)) return;
 
-              // Add amounts
-              double totalAmount = existingAmount + amount;
+    Map nutritionData = ingredient['nutrition'];
+    Map<String, dynamic> micronutrients = {};
 
-              // Round again to one decimal place
-              totalAmount = double.parse(totalAmount.toStringAsFixed(1));
-
-              // Update vitamin
-              result['vitamins']
-                  [vitaminKey] = {'amount': totalAmount, 'unit': unit};
-            } else {
-              // Add new vitamin
-              result['vitamins'][vitaminKey] = {'amount': amount, 'unit': unit};
-            }
-          }
-        });
-      }
-
-      // Process minerals
-      if (ingredient.containsKey('minerals') && ingredient['minerals'] is Map) {
-        Map<String, dynamic> minerals =
-            Map<String, dynamic>.from(ingredient['minerals']);
-
-        minerals.forEach((mineralKey, mineralValue) {
-          if (mineralValue is Map && mineralValue.containsKey('amount')) {
-            // Get amount and unit
-            double amount = 0.0;
-            String unit = 'mg';
-
-            if (mineralValue['amount'] is num) {
-              amount = (mineralValue['amount'] as num).toDouble();
-            } else if (mineralValue['amount'] is String) {
-              amount =
-                  double.tryParse(mineralValue['amount'].toString()) ?? 0.0;
-            }
-
-            if (mineralValue.containsKey('unit')) {
-              unit = mineralValue['unit'].toString();
-            }
-
-            // Round to one decimal place
-            amount = double.parse(amount.toStringAsFixed(1));
-
-            // Check if mineral already exists in result
-            if (result['minerals'].containsKey(mineralKey)) {
-              // Get existing mineral data
-              Map<String, dynamic> existingMineral =
-                  result['minerals'][mineralKey];
-              double existingAmount = 0.0;
-
-              if (existingMineral['amount'] is num) {
-                existingAmount = (existingMineral['amount'] as num).toDouble();
-              } else if (existingMineral['amount'] is String) {
-                existingAmount =
-                    double.tryParse(existingMineral['amount'].toString()) ??
-                        0.0;
-              }
-
-              // Add amounts
-              double totalAmount = existingAmount + amount;
-
-              // Round again to one decimal place
-              totalAmount = double.parse(totalAmount.toStringAsFixed(1));
-
-              // Update mineral
-              result['minerals']
-                  [mineralKey] = {'amount': totalAmount, 'unit': unit};
-            } else {
-              // Add new mineral
-              result['minerals'][mineralKey] = {'amount': amount, 'unit': unit};
-            }
-          }
-        });
-      }
-
-      // Process other nutrients from ingredient (structured format)
-      if (ingredient.containsKey('other_nutrients') &&
-          ingredient['other_nutrients'] is Map) {
-        Map<String, dynamic> otherNutrients =
-            Map<String, dynamic>.from(ingredient['other_nutrients']);
-
-        otherNutrients.forEach((nutrientKey, nutrientValue) {
-          if (nutrientValue is Map && nutrientValue.containsKey('amount')) {
-            // Get amount and unit
-            double amount = 0.0;
-            String unit = 'g'; // Default unit
-
-            if (nutrientValue['amount'] is num) {
-              amount = (nutrientValue['amount'] as num).toDouble();
-            } else if (nutrientValue['amount'] is String) {
-              amount =
-                  double.tryParse(nutrientValue['amount'].toString()) ?? 0.0;
-            }
-
-            if (nutrientValue.containsKey('unit')) {
-              unit = nutrientValue['unit'].toString();
-            } else {
-              // Assign appropriate default unit based on nutrient type
-              if (nutrientKey == 'cholesterol')
-                unit = 'mg';
-              else if (nutrientKey == 'fiber' ||
-                  nutrientKey == 'sugar' ||
-                  nutrientKey == 'saturated_fat')
-                unit = 'g';
-              else if (nutrientKey == 'omega_3' || nutrientKey == 'omega_6')
-                unit = 'mg';
-            }
-
-            // Round to one decimal place
-            amount = double.parse(amount.toStringAsFixed(1));
-
-            // Check if nutrient already exists in result
-            if (result['other_nutrients'].containsKey(nutrientKey)) {
-              // Get existing nutrient data
-              Map<String, dynamic> existingNutrient =
-                  result['other_nutrients'][nutrientKey];
-              double existingAmount = 0.0;
-
-              if (existingNutrient['amount'] is num) {
-                existingAmount = (existingNutrient['amount'] as num).toDouble();
-              } else if (existingNutrient['amount'] is String) {
-                existingAmount =
-                    double.tryParse(existingNutrient['amount'].toString()) ??
-                        0.0;
-              }
-
-              // Add amounts
-              double totalAmount = existingAmount + amount;
-
-              // Round again to one decimal place
-              totalAmount = double.parse(totalAmount.toStringAsFixed(1));
-
-              // Update nutrient
-              result['other_nutrients']
-                  [nutrientKey] = {'amount': totalAmount, 'unit': unit};
-            } else {
-              // Add new nutrient
-              result['other_nutrients']
-                  [nutrientKey] = {'amount': amount, 'unit': unit};
-            }
-          }
-        });
-      }
-
-      // Check for common nutrients at the root level of the ingredient (like cholesterol)
-      Map<String, String> rootNutrientMap = {
-        'cholesterol': 'cholesterol',
-        'fiber': 'fiber',
-        'sugar': 'sugar',
-        'saturated_fat': 'saturated_fat',
-        'omega_3': 'omega_3',
-        'omega_6': 'omega_6',
-      };
-
-      rootNutrientMap.forEach((key, standardKey) {
-        if (ingredient.containsKey(key)) {
-          var value = ingredient[key];
-          double amount = 0.0;
-          String unit = 'g'; // Default unit
-
-          // Determine amount based on value type
-          if (value is num) {
-            amount = value.toDouble();
-          } else if (value is Map && value.containsKey('amount')) {
-            amount = value['amount'] is num
-                ? (value['amount'] as num).toDouble()
-                : double.tryParse(value['amount'].toString()) ?? 0.0;
-
-            if (value.containsKey('unit')) {
-              unit = value['unit'].toString();
-            }
-          } else if (value is String) {
-            amount = double.tryParse(value) ?? 0.0;
-          }
-
-          // Assign appropriate default unit if not specified
-          if (unit == 'g') {
-            if (key == 'cholesterol')
-              unit = 'mg';
-            else if (key == 'omega_3' || key == 'omega_6') unit = 'mg';
-          }
-
-          // Only process non-zero values
-          if (amount > 0) {
-            // Round to one decimal place
-            amount = double.parse(amount.toStringAsFixed(1));
-
-            // Check if nutrient already exists in result
-            if (result['other_nutrients'].containsKey(standardKey)) {
-              // Get existing nutrient data
-              Map<String, dynamic> existingNutrient =
-                  result['other_nutrients'][standardKey];
-              double existingAmount = 0.0;
-
-              if (existingNutrient['amount'] is num) {
-                existingAmount = (existingNutrient['amount'] as num).toDouble();
-              } else if (existingNutrient['amount'] is String) {
-                existingAmount =
-                    double.tryParse(existingNutrient['amount'].toString()) ??
-                        0.0;
-              }
-
-              // Add amounts
-              double totalAmount = existingAmount + amount;
-
-              // Round again to one decimal place
-              totalAmount = double.parse(totalAmount.toStringAsFixed(1));
-
-              // Update nutrient
-              result['other_nutrients']
-                  [standardKey] = {'amount': totalAmount, 'unit': unit};
-            } else {
-              // Add new nutrient
-              result['other_nutrients']
-                  [standardKey] = {'amount': amount, 'unit': unit};
-            }
-
-            print(
-                'INGREDIENT ADD: Added $standardKey: $amount $unit from root level in ingredient');
-          }
+    // Extract all non-macronutrient values
+    nutritionData.forEach((key, value) {
+      if (value != null &&
+          !['calories', 'protein', 'fat', 'carbs'].contains(key)) {
+        // Convert to numeric value
+        double numValue = 0.0;
+        if (value is num) {
+          numValue = value.toDouble();
+        } else if (value is String) {
+          numValue = double.tryParse(value) ?? 0.0;
         }
-      });
-    }
 
-    print("Extracted micronutrients from ingredients: $result");
-    return result;
+        if (numValue > 0.0) {
+          micronutrients[key] = numValue;
+          print('Extracted from nutrition object: $key = $numValue');
+        }
+      }
+    });
+
+    // Only proceed if we found micronutrients
+    if (micronutrients.isEmpty) return;
+
+    // Create a unique ID for this update
+    String scanId =
+        'food_nutrition_${_foodName.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}';
+
+    // Save to SharedPreferences
+    _saveMicronutrientsToPrefs(micronutrients, scanId);
   }
 }

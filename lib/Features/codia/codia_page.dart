@@ -13,6 +13,205 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:grouped_list/grouped_list.dart';
 
+// Class to track nutrition data from food logs
+class NutritionTracker {
+  // Singleton instance
+  static final NutritionTracker _instance = NutritionTracker._internal();
+  factory NutritionTracker() => _instance;
+  NutritionTracker._internal();
+
+  // Current nutrition values
+  int _currentProtein = 0;
+  int _currentFat = 0;
+  int _currentCarb = 0;
+  int _consumedCalories = 0;
+
+  // Getters for nutrition values
+  int get currentProtein => _currentProtein;
+  int get currentFat => _currentFat;
+  int get currentCarb => _currentCarb;
+  int get consumedCalories => _consumedCalories;
+
+  // Add a new food log entry
+  Future<bool> logFood({
+    required String name,
+    required dynamic calories,
+    required dynamic protein,
+    required dynamic fat,
+    required dynamic carbs,
+    String? imageBase64,
+    List<dynamic>? ingredients,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Get today's date
+      String today = DateTime.now().toString().split(' ')[0];
+      String foodLogsKey = 'food_logs_$today';
+
+      // Create the food log entry
+      Map<String, dynamic> foodLog = {
+        'name': name,
+        'calories': calories,
+        'protein': protein,
+        'fat': fat,
+        'carbs': carbs,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      if (imageBase64 != null) {
+        foodLog['image'] = imageBase64;
+      }
+
+      if (ingredients != null) {
+        foodLog['ingredients'] = ingredients;
+      }
+
+      // Load existing food logs for today
+      List<dynamic> foodLogs = [];
+      if (prefs.containsKey(foodLogsKey)) {
+        String? existingLogs = prefs.getString(foodLogsKey);
+        if (existingLogs != null && existingLogs.isNotEmpty) {
+          try {
+            foodLogs = jsonDecode(existingLogs);
+          } catch (e) {
+            print('Error parsing existing food logs: $e');
+            foodLogs = [];
+          }
+        }
+      }
+
+      // Add the new food log
+      foodLogs.add(foodLog);
+
+      // Save the updated food logs
+      await prefs.setString(foodLogsKey, jsonEncode(foodLogs));
+
+      print(
+          'Added food log: $name with calories=$calories, protein=$protein, fat=$fat, carbs=$carbs');
+
+      // Update the current nutrition values
+      _currentProtein += _parseNutritionValue(protein);
+      _currentFat += _parseNutritionValue(fat);
+      _currentCarb += _parseNutritionValue(carbs);
+      _consumedCalories += _parseNutritionValue(calories);
+
+      return true;
+    } catch (e) {
+      print('Error logging food: $e');
+      return false;
+    }
+  }
+
+  // Load nutrition data from SharedPreferences
+  Future<void> loadNutritionData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Reset values first
+      _currentProtein = 0;
+      _currentFat = 0;
+      _currentCarb = 0;
+      _consumedCalories = 0;
+
+      // Get today's date
+      String today = DateTime.now().toString().split(' ')[0]; // YYYY-MM-DD
+      String foodLogsKey = 'food_logs_$today';
+
+      // First try food logs format
+      if (prefs.containsKey(foodLogsKey)) {
+        String? logsJson = prefs.getString(foodLogsKey);
+        if (logsJson != null && logsJson.isNotEmpty) {
+          try {
+            List<dynamic> logs = jsonDecode(logsJson);
+
+            // Sum up nutrition values from all logs
+            for (var log in logs) {
+              if (log is Map) {
+                _currentProtein += _parseNutritionValue(log['protein']);
+                _currentFat += _parseNutritionValue(log['fat']);
+                _currentCarb += _parseNutritionValue(log['carbs']);
+                _consumedCalories += _parseNutritionValue(log['calories']);
+              }
+            }
+
+            print('Loaded nutrition data from food logs: '
+                'protein=$_currentProtein, fat=$_currentFat, '
+                'carbs=$_currentCarb, calories=$_consumedCalories');
+          } catch (e) {
+            print('Error parsing food logs: $e');
+          }
+        }
+      } else {
+        // Try food cards format as fallback
+        if (prefs.containsKey('food_cards')) {
+          try {
+            List<String>? foodCardsJson = prefs.getStringList('food_cards');
+            if (foodCardsJson != null && foodCardsJson.isNotEmpty) {
+              for (String cardJson in foodCardsJson) {
+                Map<String, dynamic> card = jsonDecode(cardJson);
+                int multiplier =
+                    prefs.getInt('food_counter_${card['name']}') ?? 1;
+
+                _currentProtein +=
+                    _parseNutritionValue(card['protein'], multiplier);
+                _currentFat += _parseNutritionValue(card['fat'], multiplier);
+                _currentCarb += _parseNutritionValue(card['carbs'], multiplier);
+                _consumedCalories +=
+                    _parseNutritionValue(card['calories'], multiplier);
+              }
+
+              print('Loaded nutrition data from food_cards: '
+                  'protein=$_currentProtein, fat=$_currentFat, '
+                  'carbs=$_currentCarb, calories=$_consumedCalories');
+            }
+          } catch (e) {
+            print('Error loading from food_cards: $e');
+          }
+        } else {
+          print('No food log data found');
+
+          // Initialize with zeros
+          _currentProtein = 0;
+          _currentFat = 0;
+          _currentCarb = 0;
+          _consumedCalories = 0;
+        }
+      }
+    } catch (e) {
+      print('Error loading nutrition data: $e');
+    }
+  }
+
+  // Helper method to parse nutrition values safely
+  int _parseNutritionValue(dynamic value, [int multiplier = 1]) {
+    if (value == null) return 0;
+
+    if (value is int) {
+      return value * multiplier;
+    }
+
+    if (value is double) {
+      return (value * multiplier).round();
+    }
+
+    if (value is String) {
+      // Remove any non-numeric characters except decimals
+      String cleanedValue = value.replaceAll(RegExp(r'[^0-9.]'), '');
+      if (cleanedValue.isEmpty) return 0;
+
+      try {
+        return (double.parse(cleanedValue) * multiplier).round();
+      } catch (e) {
+        print('Error parsing nutrition value "$value": $e');
+        return 0;
+      }
+    }
+
+    return 0;
+  }
+}
+
 class CodiaPage extends StatefulWidget {
   CodiaPage({super.key});
 
@@ -844,18 +1043,18 @@ class _CodiaPageState extends State<CodiaPage> {
           final List<String> updatedCards =
               cards.map((card) => jsonEncode(card)).toList();
           await prefs.setStringList('food_cards', updatedCards);
-      }
+        }
 
-      // Sort by timestamp (most recent first)
-      cards.sort(
-          (a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
+        // Sort by timestamp (most recent first)
+        cards.sort(
+            (a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
 
-      setState(() {
-        _foodCards = cards;
-        _isLoadingFoodCards = false;
-      });
+        setState(() {
+          _foodCards = cards;
+          _isLoadingFoodCards = false;
+        });
 
-      print("Loaded ${cards.length} food cards");
+        print("Loaded ${cards.length} food cards");
       }
     } catch (e) {
       print("Error loading food cards: $e");
@@ -1045,9 +1244,9 @@ class _CodiaPageState extends State<CodiaPage> {
             'amount': amount,
             'calories': calories,
           });
-      } catch (e) {
+        } catch (e) {
           print("Skipping invalid ingredient: $e");
-      }
+        }
       }
     }
 
@@ -1258,385 +1457,385 @@ class _CodiaPageState extends State<CodiaPage> {
       backgroundColor:
           Color(0xFFF5F5F5), // Light background color to match the app's theme
       body: Stack(
-      children: [
-        // Background and scrollable content
-        Container(
+        children: [
+          // Background and scrollable content
+          Container(
             // Ensure the container fills the entire screen
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.height,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/images/background4.jpg'),
-              fit: BoxFit.cover,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/background4.jpg'),
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          child: SingleChildScrollView(
+            child: SingleChildScrollView(
               // Ensure the scrollable content fills the available space
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Add padding for status bar
-                SizedBox(height: statusBarHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Add padding for status bar
+                  SizedBox(height: statusBarHeight),
 
-                // Header with Fitly title and icons
-                Padding(
+                  // Header with Fitly title and icons
+                  Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 29, vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Calendar icon
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MemoriesScreen(),
-                            ),
-                          );
-                        },
-                        child: Container(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Calendar icon
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MemoriesScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
                             padding: EdgeInsets.symmetric(
                                 horizontal: 26, vertical: 8),
-                          width: 70,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/images/calendar.png',
-                            width: 19.4,
-                            height: 19.4,
+                            width: 70,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/calendar.png',
+                              width: 19.4,
+                              height: 19.4,
+                            ),
                           ),
                         ),
-                      ),
 
-                      // Fitly title
-                      Text(
-                        'Fitly',
-                        style: TextStyle(
-                          fontSize: 34.56,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'SF Pro Display',
-                          color: Colors.black,
-                          decoration: TextDecoration.none,
+                        // Fitly title
+                        Text(
+                          'Fitly',
+                          style: TextStyle(
+                            fontSize: 34.56,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'SF Pro Display',
+                            color: Colors.black,
+                            decoration: TextDecoration.none,
+                          ),
                         ),
-                      ),
 
-                      // Streak icon with count
-                      GestureDetector(
-                        onTap: () async {
-                          // Debug helper - dump SharedPreferences data to console
-                          final prefs = await SharedPreferences.getInstance();
-                          print(
-                              '\n========== DEBUG: PREFERENCES DUMP ==========');
-                          print('Keys: ${prefs.getKeys()}');
-                          for (String key in prefs.getKeys()) {
-                            try {
-                              var value;
-                              if (prefs.getString(key) != null)
-                                value = prefs.getString(key);
-                              else if (prefs.getDouble(key) != null)
-                                value = prefs.getDouble(key);
-                              else if (prefs.getInt(key) != null)
-                                value = prefs.getInt(key);
-                              else if (prefs.getBool(key) != null)
-                                value = prefs.getBool(key);
-                              print('$key: $value');
-                            } catch (e) {
-                              print('Error reading $key: $e');
+                        // Streak icon with count
+                        GestureDetector(
+                          onTap: () async {
+                            // Debug helper - dump SharedPreferences data to console
+                            final prefs = await SharedPreferences.getInstance();
+                            print(
+                                '\n========== DEBUG: PREFERENCES DUMP ==========');
+                            print('Keys: ${prefs.getKeys()}');
+                            for (String key in prefs.getKeys()) {
+                              try {
+                                var value;
+                                if (prefs.getString(key) != null)
+                                  value = prefs.getString(key);
+                                else if (prefs.getDouble(key) != null)
+                                  value = prefs.getDouble(key);
+                                else if (prefs.getInt(key) != null)
+                                  value = prefs.getInt(key);
+                                else if (prefs.getBool(key) != null)
+                                  value = prefs.getBool(key);
+                                print('$key: $value');
+                              } catch (e) {
+                                print('Error reading $key: $e');
+                              }
                             }
-                          }
                             print(
                                 '==========================================\n');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          width: 70, // Fixed width
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Image.asset(
-                                'assets/images/streak0.png',
-                                width: 19.4,
-                                height: 19.4,
-                              ),
-                              const SizedBox(width: 4),
-                              const Text(
-                                '0',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                  decoration: TextDecoration.none,
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            width: 70, // Fixed width
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Today text
-                Padding(
-                    padding:
-                        const EdgeInsets.only(left: 29, top: 8, bottom: 16),
-                  child: Text(
-                    'Today',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'SF Pro Display',
-                      color: Colors.black,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ),
-
-                // Flippable Calorie/Activity card
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 29),
-                  child: FlipCard(
-                    frontSide: _buildCalorieCard(),
-                    backSide: HomeCard2(),
-                    onFlip: () {
-                      setState(() {
-                        _showFrontCard = !_showFrontCard;
-                      });
-                    },
-                  ),
-                ),
-
-                // Pagination dots
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _showFrontCard
-                                ? Colors.black
-                                : Color(0xFFDADADA),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _showFrontCard
-                                ? Color(0xFFDADADA)
-                                : Colors.black,
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(
+                                  'assets/images/streak0.png',
+                                  width: 19.4,
+                                  height: 19.4,
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  '0',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
 
-                // Snap Meal and Coach buttons
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 29),
-                  child: Row(
-                    children: [
-                      // Snap Meal button
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            // Navigate to SnapFood screen
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SnapFood(),
-                              ),
-                            ).then((_) {
-                              _loadFoodCards();
-                            });
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/images/camera.png',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                SizedBox(width: 14),
-                                Text(
-                                  'Snap Meal',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(width: 22),
-
-                      // Coach button
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            print("Navigating to Coach screen");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => CoachScreen()),
-                            );
-                          },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/images/coach.png',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                                SizedBox(width: 14),
-                                Text(
-                                  'Coach',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Recent Activity section
-                Padding(
+                  // Today text
+                  Padding(
                     padding:
-                        const EdgeInsets.only(left: 29, top: 24, bottom: 16),
-                  child: Text(
-                    'Recent Activity',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'SF Pro Display',
-                      color: Colors.black,
-                      decoration: TextDecoration.none,
+                        const EdgeInsets.only(left: 29, top: 8, bottom: 16),
+                    child: Text(
+                      'Today',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'SF Pro Display',
+                        color: Colors.black,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
-                ),
 
-                // Dynamic food cards
-                ..._buildDynamicFoodCards(),
+                  // Flippable Calorie/Activity card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 29),
+                    child: FlipCard(
+                      frontSide: _buildCalorieCard(),
+                      backSide: HomeCard2(),
+                      onFlip: () {
+                        setState(() {
+                          _showFrontCard = !_showFrontCard;
+                        });
+                      },
+                    ),
+                  ),
 
-                // Add padding at the bottom to ensure content doesn't get cut off by the nav bar
-                SizedBox(height: 90),
-              ],
+                  // Pagination dots
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _showFrontCard
+                                  ? Colors.black
+                                  : Color(0xFFDADADA),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _showFrontCard
+                                  ? Color(0xFFDADADA)
+                                  : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Snap Meal and Coach buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 29),
+                    child: Row(
+                      children: [
+                        // Snap Meal button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              // Navigate to SnapFood screen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SnapFood(),
+                                ),
+                              ).then((_) {
+                                _loadFoodCards();
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/camera.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
+                                  SizedBox(width: 14),
+                                  Text(
+                                    'Snap Meal',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(width: 22),
+
+                        // Coach button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              print("Navigating to Coach screen");
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => CoachScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/coach.png',
+                                    width: 24,
+                                    height: 24,
+                                  ),
+                                  SizedBox(width: 14),
+                                  Text(
+                                    'Coach',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Recent Activity section
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(left: 29, top: 24, bottom: 16),
+                    child: Text(
+                      'Recent Activity',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'SF Pro Display',
+                        color: Colors.black,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+
+                  // Dynamic food cards
+                  ..._buildDynamicFoodCards(),
+
+                  // Add padding at the bottom to ensure content doesn't get cut off by the nav bar
+                  SizedBox(height: 90),
+                ],
+              ),
             ),
           ),
-        ),
 
-        // Fixed bottom navigation bar
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 90, // Increased from 60px to 90px
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 0),
-              child: Transform.translate(
-                offset: Offset(0, -5),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem('Home', 'assets/images/home.png',
-                        _selectedIndex == 0, 0),
-                    _buildNavItem('Social', 'assets/images/socialicon.png',
-                        _selectedIndex == 1, 1),
-                    _buildNavItem('Nutrition', 'assets/images/nutrition.png',
-                        _selectedIndex == 2, 2),
-                    _buildNavItem('Workout', 'assets/images/dumbbell.png',
-                        _selectedIndex == 3, 3),
-                    _buildNavItem('Profile', 'assets/images/profile.png',
-                        _selectedIndex == 4, 4),
-                  ],
+          // Fixed bottom navigation bar
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 90, // Increased from 60px to 90px
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0),
+                child: Transform.translate(
+                  offset: Offset(0, -5),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem('Home', 'assets/images/home.png',
+                          _selectedIndex == 0, 0),
+                      _buildNavItem('Social', 'assets/images/socialicon.png',
+                          _selectedIndex == 1, 1),
+                      _buildNavItem('Nutrition', 'assets/images/nutrition.png',
+                          _selectedIndex == 2, 2),
+                      _buildNavItem('Workout', 'assets/images/dumbbell.png',
+                          _selectedIndex == 3, 3),
+                      _buildNavItem('Profile', 'assets/images/profile.png',
+                          _selectedIndex == 4, 4),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
