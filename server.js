@@ -364,7 +364,7 @@ app.post('/api/nutrition', limiter, async (req, res) => {
         operation_type === 'INCREASE_CALORIES' || operation_type === 'REMOVE_INGREDIENT' || 
         operation_type === 'ADD_INGREDIENT') {
       // Food modification prompt
-      systemPrompt = 'You are a nutrition expert. Analyze the provided food description and make modifications based on instructions. Return a JSON with the updated nutritional values and ingredients.';
+      systemPrompt = 'You are a nutrition expert. Analyze the provided food description and make modifications based on instructions. Return a JSON with the updated nutritional values and ingredients, including detailed micronutrients.';
       
       let foodDescription = `Food: ${food_name}\n`;
       
@@ -395,8 +395,13 @@ app.post('/api/nutrition', limiter, async (req, res) => {
       userPrompt = foodDescription;
     } else {
       // Basic nutrition calculation prompt
-      systemPrompt = 'You are a nutrition expert. Calculate accurate nutritional values for the provided food and serving size. Return a JSON with calories, protein, fat, and carbs.';
-      userPrompt = `Calculate accurate nutritional values for ${food_name}, serving size: ${serving_size || '1 serving'}. Return only the JSON with calories, protein, fat, and carbs.`;
+      systemPrompt = 'You are a nutrition expert. Calculate accurate nutritional values for the provided food and serving size. Return a JSON with calories, protein, fat, carbs, and include detailed micronutrients (vitamins, minerals, and other nutrients like cholesterol, omega-3, omega-6, etc).';
+      userPrompt = `Calculate accurate nutritional values for ${food_name}, serving size: ${serving_size || '1 serving'}. Return a detailed JSON with calories, protein, fat, carbs and the following additional nutrients:\n
+1. Vitamins: vitamin_a, vitamin_d, vitamin_e, vitamin_k, vitamin_b12, folate
+2. Minerals: sodium, potassium, calcium, iron, magnesium, zinc, phosphorus, iodine, molybdenum, chloride, chromium, fluoride
+3. Other nutrients: cholesterol, omega_3, omega_6
+
+For each of these nutrients, provide the amount and appropriate unit of measurement. Be especially careful to include values for cholesterol, omega-3, omega-6, molybdenum, chloride, chromium, fluoride, and iodine if they are relevant to this food.`;
     }
 
     // Prepare request body for OpenAI
@@ -413,7 +418,7 @@ app.post('/api/nutrition', limiter, async (req, res) => {
           content: userPrompt
         }
       ],
-      max_tokens: 1000,
+      max_tokens: 1500,
       response_format: { type: 'json_object' }
     };
     
@@ -452,11 +457,77 @@ app.post('/api/nutrition', limiter, async (req, res) => {
     }
 
     const content = data.choices[0].message.content;
+    logToFile(`OpenAI API response content (first 100 chars): ${content.substring(0, 100)}...`);
     
     try {
       // Parse the content as JSON
       const parsedData = JSON.parse(content);
       logToFile('Successfully parsed JSON response for nutrition data');
+      
+      // Ensure we have initialized structures for micronutrients
+      if (!parsedData.vitamins) parsedData.vitamins = {};
+      if (!parsedData.minerals) parsedData.minerals = {};
+      if (!parsedData.other_nutrients) parsedData.other_nutrients = {};
+      
+      // Helper function to get unit for other nutrients
+      function getUnitForNutrient(name) {
+        name = name.toLowerCase();
+        if (name.includes('cholesterol')) return 'mg';
+        if (name.includes('omega_3') || name.includes('omega-3')) return 'mg';
+        if (name.includes('omega_6') || name.includes('omega-6')) return 'mg';
+        if (name.includes('chloride')) return 'mg';
+        if (name.includes('fluoride')) return 'mg';
+        if (name.includes('chromium')) return 'mcg';
+        if (name.includes('molybdenum')) return 'mcg';
+        if (name.includes('iodine')) return 'mcg';
+        return 'g';
+      }
+      
+      // Make sure we have placeholders for specific nutrients we want to track
+      const requiredMinerals = ['iodine', 'molybdenum', 'chloride', 'chromium', 'fluoride'];
+      const requiredOtherNutrients = ['cholesterol', 'omega_3', 'omega_6'];
+      
+      // Add missing minerals with zero values if not present
+      requiredMinerals.forEach(mineral => {
+        const key = mineral.toLowerCase().replace(/-/g, '_');
+        let found = false;
+        
+        // Check if it exists in any format
+        for (const existingKey in parsedData.minerals) {
+          if (existingKey.toLowerCase().replace(/-/g, '_') === key) {
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          parsedData.minerals[key] = {
+            amount: 0,
+            unit: getUnitForNutrient(key)
+          };
+        }
+      });
+      
+      // Add missing other nutrients with zero values if not present
+      requiredOtherNutrients.forEach(nutrient => {
+        const key = nutrient.toLowerCase().replace(/-/g, '_');
+        let found = false;
+        
+        // Check if it exists in any format
+        for (const existingKey in parsedData.other_nutrients) {
+          if (existingKey.toLowerCase().replace(/-/g, '_') === key) {
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
+          parsedData.other_nutrients[key] = {
+            amount: 0,
+            unit: getUnitForNutrient(key)
+          };
+        }
+      });
       
       return res.json({
         success: true,
