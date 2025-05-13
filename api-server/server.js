@@ -34,8 +34,18 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 // Configure CORS
 app.use(cors({
-  origin: '*', // Allow all origins
-  methods: ['GET', 'POST'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  methods: ['POST'],
   credentials: true
 }));
 
@@ -96,14 +106,14 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., \"Pasta Meal\", \"Breakfast Plate\")\n2. List ingredients with weights and calories (e.g., \"Pasta (100g) 200kcal\")\n3. Return total values for calories, protein, fat, carbs\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. CRITICAL: provide DETAILED vitamin and mineral content including all nutrients listed below\n\n[VITAMINS, MINERALS AND OTHER NUTRIENTS]\nYou MUST return values (even if 0) for ALL of the following nutrients in the exact order listed:\n\nVitamins (in this exact order):\n- vitamin_a\n- vitamin_c\n- vitamin_d\n- vitamin_e\n- vitamin_k\n- vitamin_b1\n- vitamin_b2\n- vitamin_b3\n- vitamin_b5\n- vitamin_b6\n- vitamin_b7\n- vitamin_b9\n- vitamin_b12\n\nMinerals (in this exact order):\n- calcium\n- chloride\n- chromium\n- copper\n- fluoride\n- iodine\n- iron\n- magnesium\n- manganese\n- molybdenum\n- phosphorus\n- potassium\n- selenium\n- sodium\n- zinc\n\nOther nutrients (in this exact order):\n- fiber\n- cholesterol\n- omega_3\n- omega_6\n- sodium\n- sugar\n- saturated_fat\n\nRESPONSE FORMAT (STRICTLY JSON):\n{\n  \"meal_name\": \"Meal Name\",\n  \"ingredients\": [\"Ingredient 1 (weight) calories\", \"Ingredient 2 (weight) calories\", ...],\n  \"ingredient_macros\": [{\"protein\": X, \"fat\": Y, \"carbs\": Z}, ...],\n  \"calories\": total_calories,\n  \"protein\": total_protein_grams,\n  \"fat\": total_fat_grams,\n  \"carbs\": total_carbs_grams,\n  \"health_score\": \"N/10\",\n  \"vitamins\": {\n    \"vitamin_a\": value,\n    \"vitamin_c\": value,\n    \"vitamin_d\": value,\n    \"vitamin_e\": value,\n    \"vitamin_k\": value,\n    \"vitamin_b1\": value,\n    \"vitamin_b2\": value,\n    \"vitamin_b3\": value,\n    \"vitamin_b5\": value,\n    \"vitamin_b6\": value,\n    \"vitamin_b7\": value,\n    \"vitamin_b9\": value,\n    \"vitamin_b12\": value\n  },\n  \"minerals\": {\n    \"calcium\": value,\n    \"chloride\": value,\n    \"chromium\": value,\n    \"copper\": value,\n    \"fluoride\": value,\n    \"iodine\": value,\n    \"iron\": value,\n    \"magnesium\": value,\n    \"manganese\": value,\n    \"molybdenum\": value,\n    \"phosphorus\": value,\n    \"potassium\": value,\n    \"selenium\": value,\n    \"sodium\": value,\n    \"zinc\": value\n  },\n  \"other_nutrients\": {\n    \"fiber\": value,\n    \"cholesterol\": value,\n    \"omega_3\": value,\n    \"omega_6\": value,\n    \"sodium\": value,\n    \"sugar\": value,\n    \"saturated_fat\": value\n  }\n}'
+            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for calories, protein, fat, carbs, vitamin C\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. Use decimal places and realistic estimates\n7. DO NOT respond with markdown code blocks or text explanations\n8. DO NOT prefix your response with "json" or ```\n9. ONLY RETURN A RAW JSON OBJECT\n10. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": 12.5, "fat": 5.2, "carbs": 45.7},\n    {"protein": 8.3, "fat": 3.1, "carbs": 28.3}\n  ],\n  "calories": number,\n  "protein": number,\n  "fat": number,\n  "carbs": number,\n  "vitamin_c": number,\n  "health_score": "score/10"\n}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ACCURATE PROTEIN, FAT, AND CARB VALUES FOR EACH INGREDIENT, AS WELL AS DETAILED VITAMIN, MINERAL, AND OTHER NUTRITIONAL INFORMATION:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string,\n  \"vitamins\": object with detailed vitamin content,\n  \"minerals\": object with detailed mineral content,\n  \"other_nutrients\": object with fiber, sugar, cholesterol, saturated fat\n}"
+                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ACCURATE PROTEIN, FAT, AND CARB VALUES FOR EACH INGREDIENT:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string\n}"
               },
               {
                 type: 'image_url',
@@ -112,7 +122,7 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
             ]
           }
         ],
-        max_tokens: 1500,
+        max_tokens: 1000,
         response_format: { type: 'json_object' }
       })
     });
@@ -143,62 +153,13 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
     const content = data.choices[0].message.content;
     console.log('OpenAI API response content:', content.substring(0, 100) + '...');
     
-    // Check for other_nutrients specifically
-    try {
-      const rawData = JSON.parse(content);
-      console.log('OTHER NUTRIENTS DATA CHECK:');
-      console.log('- has other_nutrients:', !!rawData.other_nutrients);
-      
-      if (rawData.other_nutrients) {
-        console.log('- other_nutrients keys:', Object.keys(rawData.other_nutrients).join(', '));
-        console.log('- other_nutrients values:');
-        Object.keys(rawData.other_nutrients).forEach(key => {
-          console.log(`  ${key}: ${rawData.other_nutrients[key]}`);
-        });
-      } else {
-        console.log('WARNING: other_nutrients is missing from OpenAI response');
-      }
-    } catch (err) {
-      console.error('Error parsing OpenAI response to check other_nutrients:', err);
-    }
-    
     // Process and parse the response
     try {
       // First try direct parsing
       const parsedData = JSON.parse(content);
       console.log('Successfully parsed JSON response');
       
-      // Debug the response structure
-      console.log('Response structure:');
-      console.log('- meal_name: present =', !!parsedData.meal_name);
-      console.log('- vitamins: present =', !!parsedData.vitamins);
-      console.log('- minerals: present =', !!parsedData.minerals);
-      console.log('- other_nutrients: present =', !!parsedData.other_nutrients);
-      
-      // Add more detailed debugging of other_nutrients
-      console.log('\n===== DEBUGGING OTHER_NUTRIENTS =====');
-      if (parsedData.other_nutrients) {
-        console.log('OTHER NUTRIENTS DATA EXISTS:');
-        
-        // Log each key-value pair in other_nutrients
-        Object.keys(parsedData.other_nutrients).forEach(key => {
-          console.log(`  ${key}: ${parsedData.other_nutrients[key]}`);
-        });
-        
-        // Specifically check for each expected field
-        console.log('\nCHECKING SPECIFIC OTHER NUTRIENT FIELDS:');
-        console.log('  Fiber:         ' + (parsedData.other_nutrients.fiber || 'not found'));
-        console.log('  Cholesterol:   ' + (parsedData.other_nutrients.cholesterol || 'not found'));
-        console.log('  Omega-3:       ' + (parsedData.other_nutrients.omega_3 || 'not found'));
-        console.log('  Omega-6:       ' + (parsedData.other_nutrients.omega_6 || 'not found'));
-        console.log('  Sodium:        ' + (parsedData.other_nutrients.sodium || 'not found'));
-        console.log('  Sugar:         ' + (parsedData.other_nutrients.sugar || 'not found'));
-        console.log('  Saturated Fat: ' + (parsedData.other_nutrients.saturated_fat || 'not found'));
-      } else {
-        console.log('OTHER NUTRIENTS DATA MISSING!');
-      }
-      console.log('===================================\n');
-      
+      // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
         return res.json({
           success: true,
@@ -368,7 +329,7 @@ function transformToRequiredFormat(data) {
         fat = 14.0;
         carbs = 0.0;
       } else if (ingredientName.toLowerCase().includes('fish') || 
-                ingredientName.includes('salmon')) {
+                ingredientName.toLowerCase().includes('salmon')) {
         ingredientWeight = '100g';
         ingredientCalories = 206;
         protein = 22.0;
@@ -448,48 +409,7 @@ function transformToRequiredFormat(data) {
       fat: mealItem.macronutrients?.fat || 0,
       carbs: mealItem.macronutrients?.carbohydrates || 0,
       vitamin_c: 1.5, // Default value
-      health_score: "7/10", // Default value
-      vitamins: {
-        vitamin_a: 0,
-        vitamin_c: 0,
-        vitamin_d: 0,
-        vitamin_e: 0,
-        vitamin_k: 0,
-        vitamin_b1: 0,
-        vitamin_b2: 0,
-        vitamin_b3: 0,
-        vitamin_b5: 0,
-        vitamin_b6: 0,
-        vitamin_b7: 0,
-        vitamin_b9: 0,
-        vitamin_b12: 0
-      },
-      minerals: {
-        calcium: 0,
-        chloride: 0,
-        chromium: 0,
-        copper: 0,
-        fluoride: 0,
-        iodine: 0,
-        iron: 0,
-        magnesium: 0,
-        manganese: 0,
-        molybdenum: 0,
-        phosphorus: 0,
-        potassium: 0,
-        selenium: 0,
-        sodium: 0,
-        zinc: 0
-      },
-      other_nutrients: {
-        fiber: 0,
-        cholesterol: 0,
-        omega_3: 0,
-        omega_6: 0,
-        sodium: 0,
-        sugar: 0,
-        saturated_fat: 0
-      }
+      health_score: "7/10" // Default value
     };
   }
   
@@ -511,48 +431,7 @@ function transformToRequiredFormat(data) {
     fat: 15,
     carbs: 60,
     vitamin_c: 2,
-    health_score: "6/10",
-    vitamins: {
-      vitamin_a: 0,
-      vitamin_c: 0,
-      vitamin_d: 0,
-      vitamin_e: 0,
-      vitamin_k: 0,
-      vitamin_b1: 0,
-      vitamin_b2: 0,
-      vitamin_b3: 0,
-      vitamin_b5: 0,
-      vitamin_b6: 0,
-      vitamin_b7: 0,
-      vitamin_b9: 0,
-      vitamin_b12: 0
-    },
-    minerals: {
-      calcium: 0,
-      chloride: 0,
-      chromium: 0,
-      copper: 0,
-      fluoride: 0,
-      iodine: 0,
-      iron: 0,
-      magnesium: 0,
-      manganese: 0,
-      molybdenum: 0,
-      phosphorus: 0,
-      potassium: 0,
-      selenium: 0,
-      sodium: 0,
-      zinc: 0
-    },
-    other_nutrients: {
-      fiber: 0,
-      cholesterol: 0,
-      omega_3: 0,
-      omega_6: 0,
-      sodium: 0,
-      sugar: 0,
-      saturated_fat: 0
-    }
+    health_score: "6/10"
   };
 }
 
@@ -790,48 +669,7 @@ function transformTextToRequiredFormat(text) {
       fat: fat || 10,
       carbs: carbs || 20,
       vitamin_c: vitaminC || 2,
-      health_score: `${healthScore}/10`,
-      vitamins: {
-        vitamin_a: 0,
-        vitamin_c: 0,
-        vitamin_d: 0,
-        vitamin_e: 0,
-        vitamin_k: 0,
-        vitamin_b1: 0,
-        vitamin_b2: 0,
-        vitamin_b3: 0,
-        vitamin_b5: 0,
-        vitamin_b6: 0,
-        vitamin_b7: 0,
-        vitamin_b9: 0,
-        vitamin_b12: 0
-      },
-      minerals: {
-        calcium: 0,
-        chloride: 0,
-        chromium: 0,
-        copper: 0,
-        fluoride: 0,
-        iodine: 0,
-        iron: 0,
-        magnesium: 0,
-        manganese: 0,
-        molybdenum: 0,
-        phosphorus: 0,
-        potassium: 0,
-        selenium: 0,
-        sodium: 0,
-        zinc: 0
-      },
-      other_nutrients: {
-        fiber: 0,
-        cholesterol: 0,
-        omega_3: 0,
-        omega_6: 0,
-        sodium: 0,
-        sugar: 0,
-        saturated_fat: 0
-      }
+      health_score: `${healthScore}/10`
     };
   }
   
@@ -853,50 +691,257 @@ function transformTextToRequiredFormat(text) {
     fat: 15,
     carbs: 60,
     vitamin_c: 2,
-    health_score: "6/10",
-    vitamins: {
-      vitamin_a: 0,
-      vitamin_c: 0,
-      vitamin_d: 0,
-      vitamin_e: 0,
-      vitamin_k: 0,
-      vitamin_b1: 0,
-      vitamin_b2: 0,
-      vitamin_b3: 0,
-      vitamin_b5: 0,
-      vitamin_b6: 0,
-      vitamin_b7: 0,
-      vitamin_b9: 0,
-      vitamin_b12: 0
-    },
-    minerals: {
-      calcium: 0,
-      chloride: 0,
-      chromium: 0,
-      copper: 0,
-      fluoride: 0,
-      iodine: 0,
-      iron: 0,
-      magnesium: 0,
-      manganese: 0,
-      molybdenum: 0,
-      phosphorus: 0,
-      potassium: 0,
-      selenium: 0,
-      sodium: 0,
-      zinc: 0
-    },
-    other_nutrients: {
-      fiber: 0,
-      cholesterol: 0,
-      omega_3: 0,
-      omega_6: 0,
-      sodium: 0,
-      sugar: 0,
-      saturated_fat: 0
-    }
+    health_score: "6/10"
   };
 }
+
+// Helper function to get unit for other nutrients
+function getUnitForNutrient(nutrientName) {
+  nutrientName = nutrientName.toLowerCase();
+  
+  // Common nutrient units
+  if (nutrientName.includes('fiber') || 
+      nutrientName.includes('sugar') || 
+      nutrientName.includes('starch')) return 'g';
+  if (nutrientName.includes('cholesterol')) return 'mg';
+  if (nutrientName.includes('caffeine')) return 'mg';
+  if (nutrientName.includes('alcohol')) return 'g';
+  if (nutrientName.includes('omega_3') || 
+      nutrientName.includes('omega3') || 
+      nutrientName.includes('omega-3')) return 'mg';
+  if (nutrientName.includes('omega_6') || 
+      nutrientName.includes('omega6') || 
+      nutrientName.includes('omega-6')) return 'mg';
+  if (nutrientName.includes('chloride')) return 'mg';
+  if (nutrientName.includes('fluoride')) return 'mg';
+  
+  // Default unit
+  return 'g';
+}
+
+// Food API endpoint for nutrition calculation
+app.post('/api/nutrition', limiter, checkApiKey, async (req, res) => {
+  try {
+    console.log('Nutrition calculation endpoint called');
+    const { food_name, serving_size, operation_type, instructions, current_data } = req.body;
+
+    // Log the request data
+    console.log(`Food name: ${food_name}, Serving size: ${serving_size}`);
+    if (operation_type) console.log(`Operation type: ${operation_type}`);
+    if (instructions) console.log(`Instructions: ${instructions}`);
+    
+    // Check if we have the minimal required data
+    if (!food_name) {
+      console.error('No food name provided in request');
+      return res.status(400).json({
+        success: false,
+        error: 'Food name is required'
+      });
+    }
+
+    // Build the prompt based on request type
+    let systemPrompt, userPrompt;
+    
+    if (operation_type === 'GENERAL' || operation_type === 'REDUCE_CALORIES' || 
+        operation_type === 'INCREASE_CALORIES' || operation_type === 'REMOVE_INGREDIENT' || 
+        operation_type === 'ADD_INGREDIENT') {
+      // Food modification prompt
+      systemPrompt = 'You are a nutrition expert. Analyze the provided food description and make modifications based on instructions. Return a JSON with the updated nutritional values and ingredients, including detailed micronutrients and trace elements.';
+      
+      let foodDescription = `Food: ${food_name}\n`;
+      
+      if (current_data) {
+        if (current_data.calories) foodDescription += `Total calories: ${current_data.calories}\n`;
+        if (current_data.protein) foodDescription += `Total protein: ${current_data.protein}\n`;
+        if (current_data.fat) foodDescription += `Total fat: ${current_data.fat}\n`;
+        if (current_data.carbs) foodDescription += `Total carbs: ${current_data.carbs}\n`;
+        
+        if (current_data.ingredients && current_data.ingredients.length > 0) {
+          foodDescription += 'Ingredients:\n';
+          for (const ingredient of current_data.ingredients) {
+            let ingredientDesc = `- ${ingredient.name}`;
+            if (ingredient.amount) ingredientDesc += ` (${ingredient.amount})`;
+            if (ingredient.calories) ingredientDesc += `: ${ingredient.calories} calories`;
+            if (ingredient.protein) ingredientDesc += `, ${ingredient.protein}g protein`;
+            if (ingredient.fat) ingredientDesc += `, ${ingredient.fat}g fat`;
+            if (ingredient.carbs) ingredientDesc += `, ${ingredient.carbs}g carbs`;
+            foodDescription += ingredientDesc + '\n';
+          }
+        }
+      }
+      
+      if (instructions) {
+        foodDescription += `\nPlease ${operation_type === 'GENERAL' ? 'analyze and update' : operation_type.toLowerCase().replace('_', ' ')} the food according to the following instruction: '${instructions}'`;
+      }
+      
+      userPrompt = foodDescription;
+    } else {
+      // Basic nutrition calculation prompt
+      systemPrompt = 'You are a nutrition expert. Calculate accurate nutritional values for the provided food and serving size. Return a JSON with calories, protein, fat, carbs, and include detailed micronutrients (vitamins, minerals, and other nutrients like cholesterol, omega-3, omega-6, etc).';
+      userPrompt = `Calculate accurate nutritional values for ${food_name}, serving size: ${serving_size || '1 serving'}. Return a detailed JSON with calories, protein, fat, carbs and the following additional nutrients:\n
+1. Vitamins: vitamin_a, vitamin_d, vitamin_e, vitamin_k, vitamin_b12, folate
+2. Minerals: sodium, potassium, calcium, iron, magnesium, zinc, phosphorus, iodine, molybdenum, chloride, chromium, fluoride
+3. Other nutrients: cholesterol, omega_3, omega_6
+
+For each of these nutrients, provide the amount and appropriate unit of measurement. Be especially careful to include values for cholesterol, omega-3, omega-6, molybdenum, chloride, chromium, fluoride, and iodine if they are relevant to this food.`;
+    }
+
+    // Prepare request body for OpenAI
+    const requestBody = {
+      model: 'gpt-4o',
+      temperature: 0.5,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      max_tokens: 1500,
+      response_format: { type: 'json_object' }
+    };
+    
+    console.log('OpenAI request payload prepared');
+    
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('OpenAI API error:', response.status, errorData);
+      return res.status(response.status).json({
+        success: false,
+        error: `OpenAI API error: ${response.status}`,
+        details: errorData
+      });
+    }
+
+    console.log('OpenAI API response received');
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      console.error('Invalid response format from OpenAI:', JSON.stringify(data));
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid response from OpenAI',
+        raw_response: data
+      });
+    }
+
+    const content = data.choices[0].message.content;
+    console.log('OpenAI API response content (first 100 chars):', content.substring(0, 100) + '...');
+    
+    try {
+      // Parse the content as JSON
+      const parsedData = JSON.parse(content);
+      console.log('Successfully parsed JSON response for nutrition data');
+      
+      // Ensure we have initialized structures for micronutrients
+      if (!parsedData.vitamins) parsedData.vitamins = {};
+      if (!parsedData.minerals) parsedData.minerals = {};
+      if (!parsedData.other_nutrients) parsedData.other_nutrients = {};
+      
+      // Normalize the data to ensure consistent formatting for nutrients
+      Object.keys(parsedData.vitamins).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.vitamins[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.vitamins[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForVitamin(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.vitamins[key];
+        }
+      });
+      
+      Object.keys(parsedData.minerals).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.minerals[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.minerals[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForMineral(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.minerals[key];
+        }
+      });
+      
+      Object.keys(parsedData.other_nutrients).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.other_nutrients[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.other_nutrients[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForNutrient(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.other_nutrients[key];
+        }
+      });
+      
+      // Make sure we have placeholders for specific nutrients we want to track
+      const requiredMinerals = ['iodine', 'molybdenum', 'chloride', 'chromium', 'fluoride'];
+      const requiredOtherNutrients = ['cholesterol', 'omega_3', 'omega_6'];
+      
+      // Add missing minerals with zero values
+      requiredMinerals.forEach(mineral => {
+        const normalizedKey = normalizeNutrientKey(mineral);
+        if (!parsedData.minerals[normalizedKey]) {
+          parsedData.minerals[normalizedKey] = {
+            amount: 0,
+            unit: getUnitForMineral(normalizedKey)
+          };
+        }
+      });
+      
+      // Add missing other nutrients with zero values
+      requiredOtherNutrients.forEach(nutrient => {
+        const normalizedKey = normalizeNutrientKey(nutrient);
+        if (!parsedData.other_nutrients[normalizedKey]) {
+          parsedData.other_nutrients[normalizedKey] = {
+            amount: 0,
+            unit: getUnitForNutrient(normalizedKey)
+          };
+        }
+      });
+      
+      return res.json({
+        success: true,
+        data: parsedData
+      });
+    } catch (error) {
+      console.error('JSON parsing failed:', error.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse nutrition data',
+        message: error.message
+      });
+    }
+  } catch (error) {
+    console.error('Server error:', error.message);
+    console.error(error.stack);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error processing nutrition request',
+      message: error.message
+    });
+  }
+});
 
 // Start the server
 app.listen(PORT, () => {
