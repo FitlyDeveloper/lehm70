@@ -695,6 +695,254 @@ function transformTextToRequiredFormat(text) {
   };
 }
 
+// Helper function to get unit for other nutrients
+function getUnitForNutrient(nutrientName) {
+  nutrientName = nutrientName.toLowerCase();
+  
+  // Common nutrient units
+  if (nutrientName.includes('fiber') || 
+      nutrientName.includes('sugar') || 
+      nutrientName.includes('starch')) return 'g';
+  if (nutrientName.includes('cholesterol')) return 'mg';
+  if (nutrientName.includes('caffeine')) return 'mg';
+  if (nutrientName.includes('alcohol')) return 'g';
+  if (nutrientName.includes('omega_3') || 
+      nutrientName.includes('omega3') || 
+      nutrientName.includes('omega-3')) return 'mg';
+  if (nutrientName.includes('omega_6') || 
+      nutrientName.includes('omega6') || 
+      nutrientName.includes('omega-6')) return 'mg';
+  if (nutrientName.includes('chloride')) return 'mg';
+  if (nutrientName.includes('fluoride')) return 'mg';
+  
+  // Default unit
+  return 'g';
+}
+
+// Food API endpoint for nutrition calculation
+app.post('/api/nutrition', limiter, checkApiKey, async (req, res) => {
+  try {
+    console.log('Nutrition calculation endpoint called');
+    const { food_name, serving_size, operation_type, instructions, current_data } = req.body;
+
+    // Log the request data
+    console.log(`Food name: ${food_name}, Serving size: ${serving_size}`);
+    if (operation_type) console.log(`Operation type: ${operation_type}`);
+    if (instructions) console.log(`Instructions: ${instructions}`);
+    
+    // Check if we have the minimal required data
+    if (!food_name) {
+      console.error('No food name provided in request');
+      return res.status(400).json({
+        success: false,
+        error: 'Food name is required'
+      });
+    }
+
+    // Build the prompt based on request type
+    let systemPrompt, userPrompt;
+    
+    if (operation_type === 'GENERAL' || operation_type === 'REDUCE_CALORIES' || 
+        operation_type === 'INCREASE_CALORIES' || operation_type === 'REMOVE_INGREDIENT' || 
+        operation_type === 'ADD_INGREDIENT') {
+      // Food modification prompt
+      systemPrompt = 'You are a nutrition expert. Analyze the provided food description and make modifications based on instructions. Return a JSON with the updated nutritional values and ingredients, including detailed micronutrients and trace elements.';
+      
+      let foodDescription = `Food: ${food_name}\n`;
+      
+      if (current_data) {
+        if (current_data.calories) foodDescription += `Total calories: ${current_data.calories}\n`;
+        if (current_data.protein) foodDescription += `Total protein: ${current_data.protein}\n`;
+        if (current_data.fat) foodDescription += `Total fat: ${current_data.fat}\n`;
+        if (current_data.carbs) foodDescription += `Total carbs: ${current_data.carbs}\n`;
+        
+        if (current_data.ingredients && current_data.ingredients.length > 0) {
+          foodDescription += 'Ingredients:\n';
+          for (const ingredient of current_data.ingredients) {
+            let ingredientDesc = `- ${ingredient.name}`;
+            if (ingredient.amount) ingredientDesc += ` (${ingredient.amount})`;
+            if (ingredient.calories) ingredientDesc += `: ${ingredient.calories} calories`;
+            if (ingredient.protein) ingredientDesc += `, ${ingredient.protein}g protein`;
+            if (ingredient.fat) ingredientDesc += `, ${ingredient.fat}g fat`;
+            if (ingredient.carbs) ingredientDesc += `, ${ingredient.carbs}g carbs`;
+            foodDescription += ingredientDesc + '\n';
+          }
+        }
+      }
+      
+      if (instructions) {
+        foodDescription += `\nPlease ${operation_type === 'GENERAL' ? 'analyze and update' : operation_type.toLowerCase().replace('_', ' ')} the food according to the following instruction: '${instructions}'`;
+      }
+      
+      userPrompt = foodDescription;
+    } else {
+      // Basic nutrition calculation prompt
+      systemPrompt = 'You are a nutrition expert. Calculate accurate nutritional values for the provided food and serving size. Return a JSON with calories, protein, fat, carbs, and include detailed micronutrients (vitamins, minerals, and other nutrients like cholesterol, omega-3, omega-6, etc).';
+      userPrompt = `Calculate accurate nutritional values for ${food_name}, serving size: ${serving_size || '1 serving'}. Return a detailed JSON with calories, protein, fat, carbs and the following additional nutrients:\n
+1. Vitamins: vitamin_a, vitamin_d, vitamin_e, vitamin_k, vitamin_b12, folate
+2. Minerals: sodium, potassium, calcium, iron, magnesium, zinc, phosphorus, iodine, molybdenum, chloride, chromium, fluoride
+3. Other nutrients: cholesterol, omega_3, omega_6
+
+For each of these nutrients, provide the amount and appropriate unit of measurement. Be especially careful to include values for cholesterol, omega-3, omega-6, molybdenum, chloride, chromium, fluoride, and iodine if they are relevant to this food.`;
+    }
+
+    // Prepare request body for OpenAI
+    const requestBody = {
+      model: 'gpt-4o',
+      temperature: 0.5,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      max_tokens: 1500,
+      response_format: { type: 'json_object' }
+    };
+    
+    console.log('OpenAI request payload prepared');
+    
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('OpenAI API error:', response.status, errorData);
+      return res.status(response.status).json({
+        success: false,
+        error: `OpenAI API error: ${response.status}`,
+        details: errorData
+      });
+    }
+
+    console.log('OpenAI API response received');
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      console.error('Invalid response format from OpenAI:', JSON.stringify(data));
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid response from OpenAI',
+        raw_response: data
+      });
+    }
+
+    const content = data.choices[0].message.content;
+    console.log('OpenAI API response content (first 100 chars):', content.substring(0, 100) + '...');
+    
+    try {
+      // Parse the content as JSON
+      const parsedData = JSON.parse(content);
+      console.log('Successfully parsed JSON response for nutrition data');
+      
+      // Ensure we have initialized structures for micronutrients
+      if (!parsedData.vitamins) parsedData.vitamins = {};
+      if (!parsedData.minerals) parsedData.minerals = {};
+      if (!parsedData.other_nutrients) parsedData.other_nutrients = {};
+      
+      // Normalize the data to ensure consistent formatting for nutrients
+      Object.keys(parsedData.vitamins).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.vitamins[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.vitamins[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForVitamin(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.vitamins[key];
+        }
+      });
+      
+      Object.keys(parsedData.minerals).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.minerals[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.minerals[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForMineral(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.minerals[key];
+        }
+      });
+      
+      Object.keys(parsedData.other_nutrients).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = parsedData.other_nutrients[key];
+        
+        // Convert to standard format with amount and unit
+        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+          parsedData.other_nutrients[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForNutrient(normalizedKey)
+          };
+          if (key !== normalizedKey) delete parsedData.other_nutrients[key];
+        }
+      });
+      
+      // Make sure we have placeholders for specific nutrients we want to track
+      const requiredMinerals = ['iodine', 'molybdenum', 'chloride', 'chromium', 'fluoride'];
+      const requiredOtherNutrients = ['cholesterol', 'omega_3', 'omega_6'];
+      
+      // Add missing minerals with zero values
+      requiredMinerals.forEach(mineral => {
+        const normalizedKey = normalizeNutrientKey(mineral);
+        if (!parsedData.minerals[normalizedKey]) {
+          parsedData.minerals[normalizedKey] = {
+            amount: 0,
+            unit: getUnitForMineral(normalizedKey)
+          };
+        }
+      });
+      
+      // Add missing other nutrients with zero values
+      requiredOtherNutrients.forEach(nutrient => {
+        const normalizedKey = normalizeNutrientKey(nutrient);
+        if (!parsedData.other_nutrients[normalizedKey]) {
+          parsedData.other_nutrients[normalizedKey] = {
+            amount: 0,
+            unit: getUnitForNutrient(normalizedKey)
+          };
+        }
+      });
+      
+      return res.json({
+        success: true,
+        data: parsedData
+      });
+    } catch (error) {
+      console.error('JSON parsing failed:', error.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse nutrition data',
+        message: error.message
+      });
+    }
+  } catch (error) {
+    console.error('Server error:', error.message);
+    console.error(error.stack);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error processing nutrition request',
+      message: error.message
+    });
+  }
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
