@@ -12,6 +12,422 @@ import 'package:flutter/gestures.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:grouped_list/grouped_list.dart';
+import './Nutrition.dart' as Nutrition;
+import 'package:table_calendar/table_calendar.dart';
+
+// Custom painter for drawing the calorie gauge
+class CalorieGaugePainter extends CustomPainter {
+  final double consumedPercentage;
+
+  CalorieGaugePainter({required this.consumedPercentage});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2,
+        size.height / 2 + 11); // Moved down 11px total (1px up from before)
+    final radius = size.width / 2 - 8;
+
+    // Use exact degree calculations for precise control
+    // Convert angles from degrees to radians for the drawArc method
+    final double startAngleDegrees =
+        47.0; // Moved -1 degree from previous position (48°)
+    final double sweepAngleDegrees =
+        -270.0; // Cover 3/4 of the circle clockwise
+
+    // Convert to radians for Flutter's drawArc
+    final double startAngleRadians = startAngleDegrees * math.pi / 180;
+    final double sweepAngleRadians = sweepAngleDegrees * math.pi / 180;
+
+    // Draw background arc (remaining calories) - gray
+    final backgroundPaint = Paint()
+      ..color = Color(0xFFE1E1E1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14.0 // Increased from 12.0 to make it wider
+      ..strokeCap = StrokeCap.round; // Rounded edges for the background gauge
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngleRadians,
+      sweepAngleRadians,
+      false,
+      backgroundPaint,
+    );
+
+    // Draw consumed calories arc - black
+    if (consumedPercentage > 0) {
+      // To create a fill with one end rounded and one end straight,
+      // we'll draw two arcs - one with rounded caps for the "back" and
+      // one with butt cap for the "front"
+
+      final double endAngle = startAngleRadians +
+          sweepAngleRadians; // The end of the background arc
+
+      // Create paint for the main fill (most of the arc) with rounded cap at the back
+      final mainFillPaint = Paint()
+        ..color = Colors.black
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14.0
+        ..strokeCap = StrokeCap.round; // Rounded edge for the back of the fill
+
+      // If we're filling more than a tiny amount, draw the main portion with rounded back
+      if (consumedPercentage > 0.02) {
+        final adjustedSweepAngle = -sweepAngleRadians *
+            (consumedPercentage - 0.01); // Slightly shorter
+
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          endAngle + 0.01, // Start slightly ahead to avoid overlap issues
+          adjustedSweepAngle, // Go in opposite direction
+          false,
+          mainFillPaint,
+        );
+      }
+
+      // Create paint for the front edge with butt cap
+      final frontEdgePaint = Paint()
+        ..color = Colors.black
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14.0
+        ..strokeCap = StrokeCap.butt; // Straight edge for the front of the fill
+
+      // Draw a very small arc at the front edge to create the straight cap
+      final frontEdgeAngle = -sweepAngleRadians * consumedPercentage;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        endAngle + frontEdgeAngle - 0.02, // Just the very front part
+        0.02, // Tiny arc
+        false,
+        frontEdgePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(CalorieGaugePainter oldDelegate) {
+    return oldDelegate.consumedPercentage != consumedPercentage;
+  }
+}
+
+// Observer class for app lifecycle events
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final VoidCallback onResume;
+
+  _AppLifecycleObserver({required this.onResume});
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResume();
+    }
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _AppLifecycleObserver;
+  }
+
+  @override
+  int get hashCode => onResume.hashCode;
+}
+
+// Class to track nutrition data from food logs
+class NutritionTracker {
+  // Singleton instance
+  static final NutritionTracker _instance = NutritionTracker._internal();
+  factory NutritionTracker() => _instance;
+  NutritionTracker._internal();
+
+  // Current nutrition values
+  int _currentProtein = 0;
+  int _currentFat = 0;
+  int _currentCarb = 0;
+  int _consumedCalories = 0;
+
+  // Getters for nutrition values
+  int get currentProtein => _currentProtein;
+  int get currentFat => _currentFat;
+  int get currentCarb => _currentCarb;
+  int get consumedCalories => _consumedCalories;
+
+  // Add a new food log entry
+  Future<bool> logFood({
+    required String name,
+    required dynamic calories,
+    required dynamic protein,
+    required dynamic fat,
+    required dynamic carbs,
+    String? imageBase64,
+    List<dynamic>? ingredients,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Get today's date
+      String today = DateTime.now().toString().split(' ')[0];
+      String foodLogsKey = 'food_logs_$today';
+
+      // Create the food log entry
+      Map<String, dynamic> foodLog = {
+        'name': name,
+        'calories': calories,
+        'protein': protein,
+        'fat': fat,
+        'carbs': carbs,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      if (imageBase64 != null) {
+        foodLog['image'] = imageBase64;
+      }
+
+      if (ingredients != null) {
+        foodLog['ingredients'] = ingredients;
+      }
+
+      // Load existing food logs for today
+      List<dynamic> foodLogs = [];
+      if (prefs.containsKey(foodLogsKey)) {
+        String? existingLogs = prefs.getString(foodLogsKey);
+        if (existingLogs != null && existingLogs.isNotEmpty) {
+          try {
+            foodLogs = jsonDecode(existingLogs);
+          } catch (e) {
+            print('Error parsing existing food logs: $e');
+            foodLogs = [];
+          }
+        }
+      }
+
+      // Add the new food log
+      foodLogs.add(foodLog);
+
+      // Save the updated food logs
+      await prefs.setString(foodLogsKey, jsonEncode(foodLogs));
+
+      print(
+          'Added food log: $name with calories=$calories, protein=$protein, fat=$fat, carbs=$carbs');
+
+      // Update the current nutrition values
+      _currentProtein += _parseNutritionValue(protein);
+      _currentFat += _parseNutritionValue(fat);
+      _currentCarb += _parseNutritionValue(carbs);
+      _consumedCalories += _parseNutritionValue(calories);
+
+      return true;
+    } catch (e) {
+      print('Error logging food: $e');
+      return false;
+    }
+  }
+
+  // Load nutrition data from SharedPreferences
+  Future<void> loadNutritionData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Reset values first
+      _currentProtein = 0;
+      _currentFat = 0;
+      _currentCarb = 0;
+      _consumedCalories = 0;
+
+      // Try to load today's food logs
+      String today = DateTime.now().toString().split(' ')[0]; // YYYY-MM-DD
+
+      // First try to get data from any known food log formats
+      bool dataFound = await _tryLoadFromFoodLogs(prefs, today) ||
+          await _tryLoadFromFoodCards(prefs) ||
+          await _tryLoadFromDailyNutrition(prefs, today);
+
+      if (!dataFound) {
+        print('No food log data found in any known format');
+
+        // For testing ONLY - use hardcoded values, COMMENT THIS OUT IN PRODUCTION
+        _setupTestData();
+      }
+    } catch (e) {
+      print('Error loading nutrition data: $e');
+    }
+  }
+
+  // Try to load from food_logs_DATE format
+  Future<bool> _tryLoadFromFoodLogs(
+      SharedPreferences prefs, String today) async {
+    String foodLogsKey = 'food_logs_$today';
+    print('Trying to load from $foodLogsKey');
+
+    if (prefs.containsKey(foodLogsKey)) {
+      String? foodLogsJson = prefs.getString(foodLogsKey);
+      print('Food logs JSON: ${foodLogsJson?.length ?? 0} characters');
+
+      if (foodLogsJson != null && foodLogsJson.isNotEmpty) {
+        try {
+          List<dynamic> foodLogs = jsonDecode(foodLogsJson);
+          print('Decoded ${foodLogs.length} food logs from $foodLogsKey');
+
+          // Sum up nutrition values from all food logs
+          for (var foodLog in foodLogs) {
+            try {
+              _currentProtein += _parseNutritionValue(foodLog['protein']);
+              _currentFat += _parseNutritionValue(foodLog['fat']);
+              _currentCarb += _parseNutritionValue(foodLog['carbs']);
+              _consumedCalories += _parseNutritionValue(foodLog['calories']);
+
+              print('Processed food log: ${foodLog['name'] ?? 'Unknown'}, '
+                  'calories: ${foodLog['calories']}, '
+                  'protein: ${foodLog['protein']}, '
+                  'fat: ${foodLog['fat']}, '
+                  'carbs: ${foodLog['carbs']}');
+            } catch (e) {
+              print('Error processing food log entry: $e');
+            }
+          }
+
+          print('Loaded nutrition data from $foodLogsKey: '
+              'protein=$_currentProtein, fat=$_currentFat, '
+              'carbs=$_currentCarb, calories=$_consumedCalories');
+          return true;
+        } catch (e) {
+          print('Error parsing food logs JSON from $foodLogsKey: $e');
+        }
+      }
+    }
+    return false;
+  }
+
+  // Try to load from food_cards format (used by SnapFood)
+  Future<bool> _tryLoadFromFoodCards(SharedPreferences prefs) async {
+    print('Trying to load from food_cards');
+
+    if (prefs.containsKey('food_cards')) {
+      List<String>? cardStrings = prefs.getStringList('food_cards');
+
+      if (cardStrings != null && cardStrings.isNotEmpty) {
+        print('Found ${cardStrings.length} food cards');
+
+        // Get today's date for filtering
+        String today = DateTime.now().toString().split(' ')[0]; // YYYY-MM-DD
+
+        for (String cardJson in cardStrings) {
+          try {
+            Map<String, dynamic> card = jsonDecode(cardJson);
+
+            // Check if this card is from today
+            int timestamp = card['timestamp'] ?? 0;
+            DateTime cardDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+            String cardDateStr = cardDate.toString().split(' ')[0];
+
+            if (cardDateStr == today) {
+              // Get counter (portions) value with fallback to 1
+              int counter = 1;
+              if (card.containsKey('counter')) {
+                counter = card['counter'] is int
+                    ? card['counter']
+                    : int.tryParse(card['counter'].toString()) ?? 1;
+
+                // Ensure counter is between 1 and 3
+                counter = counter.clamp(1, 3);
+              }
+
+              // This card is from today, add its nutrition values WITHOUT counter multiplier
+              _currentProtein += _parseNutritionValue(card['protein']);
+              _currentFat += _parseNutritionValue(card['fat']);
+              _currentCarb += _parseNutritionValue(card['carbs']);
+              _consumedCalories += _parseNutritionValue(card['calories']);
+
+              print('Added food card from today: ${card['name']} (×$counter), '
+                  'calories: ${_parseNutritionValue(card['calories'])} (base: ${card['calories']}), '
+                  'protein: ${_parseNutritionValue(card['protein'])} (base: ${card['protein']}), '
+                  'fat: ${_parseNutritionValue(card['fat'])} (base: ${card['fat']}), '
+                  'carbs: ${_parseNutritionValue(card['carbs'])} (base: ${card['carbs']})');
+            }
+          } catch (e) {
+            print('Error processing food card: $e');
+          }
+        }
+
+        print('Loaded nutrition data from food_cards: '
+            'protein=$_currentProtein, fat=$_currentFat, '
+            'carbs=$_currentCarb, calories=$_consumedCalories');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Try to load from daily nutrition format
+  Future<bool> _tryLoadFromDailyNutrition(
+      SharedPreferences prefs, String today) async {
+    String dailyNutritionKey = 'daily_nutrition_$today';
+    print('Trying to load from $dailyNutritionKey');
+
+    if (prefs.containsKey(dailyNutritionKey)) {
+      String? nutritionJson = prefs.getString(dailyNutritionKey);
+
+      if (nutritionJson != null && nutritionJson.isNotEmpty) {
+        try {
+          Map<String, dynamic> nutrition = jsonDecode(nutritionJson);
+          _currentProtein = _parseNutritionValue(nutrition['protein']);
+          _currentFat = _parseNutritionValue(nutrition['fat']);
+          _currentCarb = _parseNutritionValue(nutrition['carbs']);
+          _consumedCalories = _parseNutritionValue(nutrition['calories']);
+
+          print('Loaded nutrition data from $dailyNutritionKey: '
+              'protein=$_currentProtein, fat=$_currentFat, '
+              'carbs=$_currentCarb, calories=$_consumedCalories');
+          return true;
+        } catch (e) {
+          print('Error parsing nutrition JSON from $dailyNutritionKey: $e');
+        }
+      }
+    }
+    return false;
+  }
+
+  // Helper method to parse nutrition values safely
+  int _parseNutritionValue(dynamic value, [int multiplier = 1]) {
+    if (value == null) return 0;
+
+    if (value is int) {
+      return value * multiplier;
+    }
+
+    if (value is double) {
+      return (value * multiplier).round();
+    }
+
+    if (value is String) {
+      // Remove any non-numeric characters except decimals
+      String cleanedValue = value.replaceAll(RegExp(r'[^0-9.]'), '');
+      if (cleanedValue.isEmpty) return 0;
+
+      try {
+        return (double.parse(cleanedValue) * multiplier).round();
+      } catch (e) {
+        print('Error parsing nutrition value "$value": $e');
+        return 0;
+      }
+    }
+
+    return 0;
+  }
+
+  // Setup test data for debugging
+  void _setupTestData() {
+    print('No food log data found - setting all nutrition values to zero');
+
+    // Set all values to zero when no food logs are found
+    _currentProtein = 0;
+    _currentFat = 0;
+    _currentCarb = 0;
+    _consumedCalories = 0;
+
+    print(
+        'Set nutrition values to zero: protein=$_currentProtein, fat=$_currentFat, carbs=$_currentCarb, calories=$_consumedCalories');
+  }
+}
 
 class CodiaPage extends StatefulWidget {
   CodiaPage({super.key});
@@ -29,6 +445,9 @@ class _CodiaPageState extends State<CodiaPage> {
   bool isImperial = false; // Track metric/imperial setting
   double originalGoalSpeed = 0.0; // Track original goal speed for logs
   int streakCount = 0; // Track user's streak count
+
+  // Create instance of NutritionTracker
+  final NutritionTracker _nutritionTracker = NutritionTracker();
 
   // User data variables - will be populated from saved answers
   String userGender = 'Female'; // Default values, will be overridden
@@ -102,6 +521,24 @@ class _CodiaPageState extends State<CodiaPage> {
 
     _loadUserData(); // Load the user's actual data from storage
     _loadFoodCards(); // Load food cards from SharedPreferences
+    _loadNutritionData(); // Load nutrition data from food logs
+
+    // Add listener to refresh data when app resumes
+    WidgetsBinding.instance.addObserver(_AppLifecycleObserver(
+      onResume: () {
+        print('App resumed - refreshing nutrition data');
+        _loadNutritionData();
+      },
+    ));
+  }
+
+  @override
+  void dispose() {
+    // Remove observers
+    WidgetsBinding.instance.removeObserver(
+      _AppLifecycleObserver(onResume: () {}),
+    );
+    super.dispose();
   }
 
   // Load user data from SharedPreferences
@@ -124,11 +561,16 @@ class _CodiaPageState extends State<CodiaPage> {
       }
 
       // Load gender
-      if (prefs.containsKey('gender')) {
+      if (prefs.containsKey('user_gender')) {
+        setState(() {
+          userGender = prefs.getString('user_gender') ?? 'Male';
+        });
+        debugPrint('Loaded gender from user_gender key: $userGender');
+      } else if (prefs.containsKey('gender')) {
         setState(() {
           userGender = prefs.getString('gender') ?? 'Male';
         });
-        debugPrint('Loaded gender: $userGender');
+        debugPrint('Loaded gender from gender key: $userGender');
       } else {
         debugPrint('No gender found, using default: Male');
       }
@@ -873,19 +1315,19 @@ class _CodiaPageState extends State<CodiaPage> {
   }
 
   // Helper method to extract numeric value from a string and convert to int
-  int _extractNumericValueAsInt(dynamic input) {
+  int _extractNumericValueAsInt(dynamic input, {int multiplier = 1}) {
     if (input is int) {
-      return input;
+      return input * multiplier;
     } else if (input is double) {
-      return input.round();
+      return (input * multiplier).round();
     } else if (input is String) {
       // Try to extract digits from the string, including possible decimal values
       final match = RegExp(r'(\d+\.?\d*)').firstMatch(input);
       if (match != null && match.group(1) != null) {
         // Parse as double first to handle potential decimal values
         final value = double.tryParse(match.group(1)!) ?? 0.0;
-        // Then round to nearest int
-        return value.round();
+        // Then round to nearest int, after applying multiplier
+        return (value * multiplier).round();
       }
     }
     return 0;
@@ -982,7 +1424,18 @@ class _CodiaPageState extends State<CodiaPage> {
     // Get values with fallbacks ensuring correct types
     String name = foodCard['name'] ?? 'Unknown Meal';
 
-    // Handle numeric values with proper parsing
+    // Get counter (portions) value with fallback to 1
+    int counter = 1;
+    if (foodCard.containsKey('counter')) {
+      counter = foodCard['counter'] is int
+          ? foodCard['counter']
+          : _extractNumericValueAsInt(foodCard['counter']);
+
+      // Ensure counter is between 1 and 3
+      counter = counter.clamp(1, 3);
+    }
+
+    // Handle numeric values with proper parsing - DO NOT apply counter multiplier
     int calories = _extractNumericValueAsInt(foodCard['calories']);
     int protein = _extractNumericValueAsInt(foodCard['protein']);
     int fat = _extractNumericValueAsInt(foodCard['fat']);
@@ -1004,7 +1457,7 @@ class _CodiaPageState extends State<CodiaPage> {
 
         // Try to find amount and calories by examining foodCard
         String amount = '1 serving';
-        dynamic calories = 0;
+        dynamic ingredientCalories = 0;
 
         // If the parent foodCard has calories data for this specific ingredient, use it
         if (foodCard.containsKey('ingredient_amounts') &&
@@ -1016,14 +1469,15 @@ class _CodiaPageState extends State<CodiaPage> {
         if (foodCard.containsKey('ingredient_calories') &&
             foodCard['ingredient_calories'] is Map &&
             foodCard['ingredient_calories'].containsKey(ingredientName)) {
-          calories =
-              foodCard['ingredient_calories'][ingredientName] ?? calories;
+          ingredientCalories = foodCard['ingredient_calories']
+                  [ingredientName] ??
+              ingredientCalories;
         }
 
         processedIngredients.add({
           'name': ingredientName,
           'amount': amount,
-          'calories': calories,
+          'calories': ingredientCalories,
         });
       } else {
         // Try to convert other types to String then to Map
@@ -1032,7 +1486,7 @@ class _CodiaPageState extends State<CodiaPage> {
 
           // Use the same logic as above to try to find amount and calories
           String amount = '1 serving';
-          dynamic calories = 0;
+          dynamic ingredientCalories = 0;
 
           if (foodCard.containsKey('ingredient_amounts') &&
               foodCard['ingredient_amounts'] is Map &&
@@ -1043,14 +1497,15 @@ class _CodiaPageState extends State<CodiaPage> {
           if (foodCard.containsKey('ingredient_calories') &&
               foodCard['ingredient_calories'] is Map &&
               foodCard['ingredient_calories'].containsKey(ingredientStr)) {
-            calories =
-                foodCard['ingredient_calories'][ingredientStr] ?? calories;
+            ingredientCalories = foodCard['ingredient_calories']
+                    [ingredientStr] ??
+                ingredientCalories;
           }
 
           processedIngredients.add({
             'name': ingredientStr,
             'amount': amount,
-            'calories': calories,
+            'calories': ingredientCalories,
           });
         } catch (e) {
           print("Skipping invalid ingredient: $e");
@@ -1062,24 +1517,32 @@ class _CodiaPageState extends State<CodiaPage> {
       padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 8),
       child: GestureDetector(
         onTap: () {
+          // Pass the original base values to FoodCardOpen, not the multiplied ones
+          // This ensures FoodCardOpen works with the base values and can multiply them as needed
+          int baseCalories = _extractNumericValueAsInt(foodCard['calories']);
+          int baseProtein = _extractNumericValueAsInt(foodCard['protein']);
+          int baseFat = _extractNumericValueAsInt(foodCard['fat']);
+          int baseCarbs = _extractNumericValueAsInt(foodCard['carbs']);
+
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => FoodCardOpen(
                 foodName: name,
-                calories: calories.toString(),
-                protein: protein.toString(),
-                fat: fat.toString(),
-                carbs: carbs.toString(),
+                calories: baseCalories.toString(),
+                protein: baseProtein.toString(),
+                fat: baseFat.toString(),
+                carbs: baseCarbs.toString(),
                 imageBase64: base64Image,
                 ingredients: processedIngredients,
                 healthScore: foodCard['health_score'] ?? '8/10',
-                vitamins: foodCard['vitamins'],
-                minerals: foodCard['minerals'],
-                otherNutrients: foodCard['other_nutrients'],
               ),
             ),
-          );
+          ).then((_) {
+            // Refresh data when returning from FoodCardOpen
+            _loadFoodCards();
+            _loadNutritionData();
+          });
         },
         child: Container(
           padding: EdgeInsets.only(right: 12),
@@ -1116,7 +1579,7 @@ class _CodiaPageState extends State<CodiaPage> {
                         children: [
                           Flexible(
                             child: Text(
-                              name,
+                              counter > 1 ? '$name (×$counter)' : name,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
@@ -1261,6 +1724,12 @@ class _CodiaPageState extends State<CodiaPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Update nutrition data when building to ensure consistent values
+    if (!isLoading && targetCalories > 0) {
+      remainingCalories = targetCalories - _nutritionTracker.consumedCalories;
+      if (remainingCalories < 0) remainingCalories = 0;
+    }
+
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -1463,14 +1932,7 @@ class _CodiaPageState extends State<CodiaPage> {
                           child: GestureDetector(
                             onTap: () {
                               // Navigate to SnapFood screen
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SnapFood(),
-                                ),
-                              ).then((_) {
-                                _loadFoodCards();
-                              });
+                              _navigateToSnapFood();
                             },
                             child: Container(
                               padding: EdgeInsets.symmetric(vertical: 12),
@@ -1515,12 +1977,7 @@ class _CodiaPageState extends State<CodiaPage> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              print("Navigating to Coach screen");
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => CoachScreen()),
-                              );
+                              _navigateToCoach();
                             },
                             child: Container(
                               padding: EdgeInsets.symmetric(vertical: 12),
@@ -1647,6 +2104,9 @@ class _CodiaPageState extends State<CodiaPage> {
               reverseTransitionDuration: Duration.zero,
             ),
           );
+        } else if (label == 'Nutrition') {
+          // Call our custom navigation method for Nutrition
+          _navigateToNutrition();
         }
         setState(() {
           _selectedIndex = index;
@@ -1678,22 +2138,21 @@ class _CodiaPageState extends State<CodiaPage> {
   }
 
   Widget _buildCalorieCard() {
-    // Don't recalculate here - use the value calculated in _loadUserData
-    double caloriesToShow = targetCalories.toDouble();
+    // Get the consumed calories directly from the NutritionTracker singleton
+    int consumedCalories = _nutritionTracker.consumedCalories;
 
-    // Calculate TDEE for maintenance display - USING EXACTLY THE SAME METHOD AS calculateTDEE()
-    int maintenanceCalories = calculateTDEE(
-      gender: userGender,
-      weightKg: ((userWeightKg * 10).round() / 10.0)
-          .round(), // Round to 1 decimal then to int
-      heightCm: userHeightCm.round(), // Make sure height is whole number
-      userAge: userAge, // Use the calculated age
-    );
+    // Calculate remaining calories directly - don't rely on class variables that might be stale
+    int directRemaining = targetCalories - consumedCalories;
 
-    // When goal is maintain, ensure deficit shows same value as remaining calories
-    if (userGoal == 'maintain') {
-      maintenanceCalories = caloriesToShow.toInt();
-    }
+    // Get the macronutrient values from the NutritionTracker singleton
+    int currentProtein = _nutritionTracker.currentProtein;
+    int currentFat = _nutritionTracker.currentFat;
+    int currentCarb = _nutritionTracker.currentCarb;
+
+    // Define macro targets for UI
+    int proteinTarget = 123; // Default values
+    int fatTarget = 55;
+    int carbTarget = 246;
 
     // Define macro distribution based on gym goal
     Map<String, Map<String, double>> macroTargets = {
@@ -1720,62 +2179,71 @@ class _CodiaPageState extends State<CodiaPage> {
       }
     };
 
-    // Get the macro distribution for the selected gym goal (default to balanced macros if null or not found)
-    debugPrint('Using gym goal for macros: "$userGymGoal"');
-    Map<String, double> selectedMacros =
-        macroTargets["null"]!; // Default to balanced macros
-
-    // Only try to use userGymGoal if it's a valid key in the map - EXACTLY like in calculation_screen.dart
+    // Get the macro distribution for the selected gym goal
+    Map<String, double> selectedMacros = macroTargets["null"]!; // Default
     String goalKey = userGymGoal ?? "null";
     if (macroTargets.containsKey(goalKey)) {
       selectedMacros = macroTargets[goalKey]!;
-      print('Using macro distribution for: "$goalKey"');
-    } else {
+    }
+
+    // Calculate macronutrient targets based on calorie goal
+    if (targetCalories > 0) {
+      double proteinPercent = selectedMacros["proteinPercent"]!;
+      double carbPercent = selectedMacros["carbPercent"]!;
+      double fatPercent = selectedMacros["fatPercent"]!;
+
+      proteinTarget = ((targetCalories * proteinPercent) / 4).round();
+      fatTarget = ((targetCalories * fatPercent) / 9).round();
+      carbTarget = ((targetCalories * carbPercent) / 4).round();
+    }
+
+    // Determine deficit or surplus based on consumed vs target
+    String deficitLabel = "Deficit";
+    String deficitValue = "-${calculateTDEE(
+      gender: userGender,
+      weightKg: ((userWeightKg * 10).round() / 10.0).round(),
+      heightCm: userHeightCm.round(),
+      userAge: userAge,
+    ).round()}";
+
+    // If consumed calories exceed target, show as surplus
+    if (consumedCalories >= targetCalories) {
+      deficitLabel = "Surplus";
+      int surplusAmount = consumedCalories - targetCalories;
+      deficitValue = "${surplusAmount}";
+
       print(
-          'No matching macro distribution for: "$goalKey", using balanced default');
+          "SURPLUS DETECTED: Consumed=$consumedCalories, Target=$targetCalories, Surplus=$surplusAmount");
     }
 
-    // Calculate macronutrient targets based on calorie goal and gym goal
-    double proteinPercent = selectedMacros["proteinPercent"]!;
-    double carbPercent = selectedMacros["carbPercent"]!;
-    double fatPercent = selectedMacros["fatPercent"]!;
-
-    // Log the selected macro distribution exactly like calculation_screen.dart
-    print('Using macro distribution for gym goal: "$userGymGoal"');
-    print('- Protein: ${(proteinPercent * 100).toStringAsFixed(1)}%');
-    print('- Carbs: ${(carbPercent * 100).toStringAsFixed(1)}%');
-    print('- Fat: ${(fatPercent * 100).toStringAsFixed(1)}%');
-
-    // Calculate macro targets in grams
-    int proteinTarget = ((caloriesToShow * proteinPercent) / 4).round();
-    int fatTarget = ((caloriesToShow * fatPercent) / 9).round();
-    int carbTarget = ((caloriesToShow * carbPercent) / 4).round();
-
-    // Log the calculations with the exact same format as calculation_screen.dart
-    print('Calculated macro targets for $caloriesToShow calories:');
-    print(
-        '- Protein: ${proteinTarget}g (${(caloriesToShow * proteinPercent).round()} kcal)');
-    print(
-        '- Fat: ${fatTarget}g (${(caloriesToShow * fatPercent).round()} kcal)');
-    print(
-        '- Carbs: ${carbTarget}g (${(caloriesToShow * carbPercent).round()} kcal)');
-    print(
-        '- Total: ${((caloriesToShow * proteinPercent) + (caloriesToShow * fatPercent) + (caloriesToShow * carbPercent)).round()} kcal');
-
-    // Set current intake to 0 until user logs food
-    int currentProtein = 0;
-    int currentFat = 0;
-    int currentCarb = 0;
-
-    // If we're still loading or have 0 calories, show a loading indicator
-    if (isLoading || targetCalories == 0) {
-      print('Loading calorie data or no calories calculated yet');
-      // We could return a loading indicator here if needed
+    // Special handling for maintain goal
+    if (userGoal == 'maintain') {
+      if (directRemaining > 0) {
+        deficitLabel = "Deficit";
+        deficitValue = "-${directRemaining.abs().round()}";
+      } else {
+        deficitLabel = "Surplus";
+        deficitValue = "${directRemaining.abs().round()}";
+      }
     }
+
+    // Format remaining calories text to show negative when below 0
+    String remainingText = directRemaining < 0
+        ? "-${directRemaining.abs().round()}"
+        : "${directRemaining.round()}";
+
+    // Debug print to verify our calculations
+    print("DEBUG VALUES:");
+    print("Target calories: $targetCalories");
+    print("Consumed calories: $consumedCalories");
+    print("Direct remaining: $directRemaining");
+    print("Deficit/Surplus label: $deficitLabel");
+    print("Deficit/Surplus value: $deficitValue");
+    print("Remaining text: $remainingText");
 
     return Container(
       height: 220,
-      padding: EdgeInsets.fromLTRB(20, 15, 20, 15), // Reduced vertical padding
+      padding: EdgeInsets.fromLTRB(20, 15, 20, 15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1788,17 +2256,17 @@ class _CodiaPageState extends State<CodiaPage> {
         ],
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // Add this to prevent expansion
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Calorie stats row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Deficit (now showing maintenance calories)
+              // Deficit/Surplus
               Column(
                 children: [
                   Text(
-                    '-${maintenanceCalories.round()}',
+                    deficitValue,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -1807,7 +2275,7 @@ class _CodiaPageState extends State<CodiaPage> {
                     ),
                   ),
                   Text(
-                    'Deficit',
+                    deficitLabel,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.normal,
@@ -1820,29 +2288,33 @@ class _CodiaPageState extends State<CodiaPage> {
 
               // Circular progress
               Container(
-                width: 130,
-                height: 130,
+                width: 132,
+                height: 132,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Circle image instead of custom painted progress
+                    // Simple circle gauge using CustomPaint
                     Transform.translate(
-                      offset:
-                          Offset(0, -3.9), // Move up by 3% (130 * 0.03 = 3.9)
-                      child: Image.asset(
-                        'assets/images/circle.png',
-                        width: 130,
-                        height: 130,
-                        fit: BoxFit.contain,
+                      offset: Offset(0, -3.9), // Move up by 3%
+                      child: CustomPaint(
+                        size: Size(132, 132),
+                        painter: CalorieGaugePainter(
+                          // Important: Always directly use consumed calories divided by target
+                          // Without relying on a state variable that might not be updating
+                          consumedPercentage: targetCalories > 0
+                              ? (consumedCalories / targetCalories)
+                                  .clamp(0.0, 1.0)
+                              : 0.0,
+                        ),
                       ),
                     ),
 
-                    // Remaining calories text - UPDATED to show exact calculation
+                    // Remaining calories text
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          caloriesToShow.round().toString(),
+                          remainingText,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -1917,8 +2389,9 @@ class _CodiaPageState extends State<CodiaPage> {
                       color: Color(0xFFEEEEEE),
                     ),
                     child: FractionallySizedBox(
-                      widthFactor:
-                          currentProtein / proteinTarget, // Dynamic progress
+                      widthFactor: proteinTarget > 0
+                          ? (currentProtein / proteinTarget).clamp(0.0, 1.0)
+                          : 0.0,
                       alignment: Alignment.centerLeft,
                       child: Container(
                         decoration: BoxDecoration(
@@ -1961,7 +2434,9 @@ class _CodiaPageState extends State<CodiaPage> {
                       color: Color(0xFFEEEEEE),
                     ),
                     child: FractionallySizedBox(
-                      widthFactor: currentFat / fatTarget, // Dynamic progress
+                      widthFactor: fatTarget > 0
+                          ? (currentFat / fatTarget).clamp(0.0, 1.0)
+                          : 0.0,
                       alignment: Alignment.centerLeft,
                       child: Container(
                         decoration: BoxDecoration(
@@ -2004,7 +2479,9 @@ class _CodiaPageState extends State<CodiaPage> {
                       color: Color(0xFFEEEEEE),
                     ),
                     child: FractionallySizedBox(
-                      widthFactor: currentCarb / carbTarget, // Dynamic progress
+                      widthFactor: carbTarget > 0
+                          ? (currentCarb / carbTarget).clamp(0.0, 1.0)
+                          : 0.0,
                       alignment: Alignment.centerLeft,
                       child: Container(
                         decoration: BoxDecoration(
@@ -2205,59 +2682,160 @@ class _CodiaPageState extends State<CodiaPage> {
       },
     );
   }
-}
 
-class CircleProgressPainter extends CustomPainter {
-  final double progress;
-  final Color progressColor;
-  final Color backgroundColor;
-  final double strokeWidth;
+  // Load nutrition data from food logs
+  Future<void> _loadNutritionData() async {
+    await _nutritionTracker.loadNutritionData();
+    setState(() {
+      // Update remaining calories based on consumed calories
+      if (targetCalories > 0) {
+        remainingCalories = targetCalories - _nutritionTracker.consumedCalories;
+        // Important: Print debug info to see what's happening with the values
+        print(
+            'LOAD DATA DEBUG: Target=$targetCalories, Consumed=${_nutritionTracker.consumedCalories}, Remaining=$remainingCalories');
+        // No clamping - we need negative values to show overage
+      }
+    });
+    print(
+        'Updated remaining calories: $remainingCalories (target=$targetCalories, consumed=${_nutritionTracker.consumedCalories})');
+  }
 
-  CircleProgressPainter({
-    required this.progress,
-    required this.progressColor,
-    required this.backgroundColor,
-    required this.strokeWidth,
-  });
+  // Navigation methods for Snap Meal and Coach buttons
+  void _navigateToSnapFood() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SnapFood(),
+      ),
+    ).then((_) {
+      // Refresh both food cards and nutrition data when returning from SnapFood
+      print('Returned from SnapFood - refreshing data');
+      _loadFoodCards();
+      _loadNutritionData();
+    });
+  }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - strokeWidth) / 2;
+  // Navigation to Nutrition screen with better food-specific data handling
+  void _navigateToNutrition() async {
+    String finalScanId = 'nutrition_general_view';
+    Map<String, dynamic>? existingNutritionData;
 
-    // Draw background circle if needed
-    if (backgroundColor != Colors.transparent) {
-      final backgroundPaint = Paint()
-        ..color = backgroundColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth;
+    try {
+      // Get the current food scan ID from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
 
-      canvas.drawCircle(center, radius, backgroundPaint);
+      // First try to find food-specific nutrition data from recent food cards (highest priority)
+      List<String>? foodCards = prefs.getStringList('food_cards');
+      bool foundFoodCardData = false;
+
+      if (foodCards != null && foodCards.isNotEmpty) {
+        // Try to find the most recent food card with valid nutrition data
+        for (String cardJson in foodCards.take(5)) {
+          // Check only the 5 most recent cards
+          try {
+            Map<String, dynamic> foodCard = jsonDecode(cardJson);
+
+            // Generate the proper scan ID using the same format as FoodCardOpen.dart
+            if (foodCard.containsKey('name') &&
+                foodCard.containsKey('calories')) {
+              String foodName = foodCard['name']
+                  .toString()
+                  .toLowerCase()
+                  .trim()
+                  .replaceAll(' ', '_');
+              String caloriesId =
+                  foodCard['calories'].toString().replaceAll('.', '_');
+              String foodSpecificScanId =
+                  "food_nutrition_${foodName}_${caloriesId}";
+
+              // Try to load nutrition data with this ID
+              String? nutritionJson =
+                  prefs.getString('food_nutrition_data_$foodSpecificScanId') ??
+                      prefs.getString('nutrition_data_$foodSpecificScanId');
+
+              if (nutritionJson != null && nutritionJson.isNotEmpty) {
+                try {
+                  existingNutritionData = jsonDecode(nutritionJson);
+                  finalScanId = foodSpecificScanId;
+                  print(
+                      'Found nutrition data using food card ID: $foodSpecificScanId');
+                  foundFoodCardData = true;
+                  break;
+                } catch (e) {
+                  print('Error parsing nutrition data for card: $e');
+                }
+              }
+            }
+          } catch (e) {
+            print('Error processing food card for nutrition data: $e');
+          }
+        }
+      }
+
+      // If we couldn't find any food-specific data, use the global data as fallback
+      if (!foundFoodCardData) {
+        // Check for global nutrition data
+        if (prefs.containsKey('PERMANENT_GLOBAL_NUTRITION_DATA')) {
+          try {
+            String globalData =
+                prefs.getString('PERMANENT_GLOBAL_NUTRITION_DATA')!;
+            Map<String, dynamic> parsedData = jsonDecode(globalData);
+
+            // Extract both scanId and the actual nutrition data
+            if (parsedData.containsKey('scanId')) {
+              finalScanId = parsedData['scanId'];
+              print('Using scan ID from global nutrition data: $finalScanId');
+
+              // Keep the existing nutrition data to pass to the next screen
+              existingNutritionData = parsedData;
+            }
+          } catch (e) {
+            print('Error parsing global nutrition data: $e');
+          }
+        }
+      }
+
+      print('Navigating to Nutrition with scan ID: $finalScanId');
+    } catch (e) {
+      print('Error preparing navigation to Nutrition: $e');
+      // Keep using the default ID set above
     }
 
-    // Draw progress arc
-    final progressPaint = Paint()
-      ..color = progressColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    final sweepAngle = 2 * math.pi * progress;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2, // Start from top
-      sweepAngle,
-      false,
-      progressPaint,
+    // Always navigate, using either the found ID or the default
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Nutrition.CodiaPage(
+          nutritionData: existingNutritionData != null
+              ? (existingNutritionData['nutritionData'] ??
+                  existingNutritionData)
+              : null,
+          scanId: finalScanId,
+        ),
+      ),
     );
   }
 
-  @override
-  bool shouldRepaint(CircleProgressPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.progressColor != progressColor ||
-        oldDelegate.backgroundColor != backgroundColor ||
-        oldDelegate.strokeWidth != strokeWidth;
+  void _navigateToCoach() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CoachScreen(),
+      ),
+    );
+  }
+
+  void _navigateToFoodCardOpen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FoodCardOpen(),
+      ),
+    ).then((_) {
+      // Refresh both food cards and nutrition data when returning
+      print('Returned from FoodCardOpen - refreshing data');
+      _loadFoodCards();
+      _loadNutritionData();
+    });
   }
 }

@@ -15,6 +15,9 @@ console.log('Node environment:', process.env.NODE_ENV);
 console.log('Current directory:', process.cwd());
 console.log('OpenAI API Key present:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
+// Set trust proxy to fix the X-Forwarded-For warning
+app.set('trust proxy', 1);
+
 // Configure rate limiting
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -239,204 +242,358 @@ function transformToRequiredFormat(data) {
     const ingredientsList = mealItem.ingredients || [];
     const ingredientMacros = [];
     
-    // Create ingredient macros array
-    const transformedIngredients = ingredientsList.map((ingredient, index) => {
-      let ingredientName = typeof ingredient === 'string' ? ingredient : '';
-      let ingredientWeight = '30g';
-      let ingredientCalories = 75;
+    // Extract top-level micronutrients if available
+    const topLevelVitamins = {};
+    const topLevelMinerals = {};
+    const topLevelOtherNutrients = {};
+
+    // Check for vitamins in the response
+    if (data.vitamins || mealItem.vitamins) {
+      const vitaminsData = data.vitamins || mealItem.vitamins || {};
       
-      // Estimate ingredient macros based on name
-      let protein = 0;
-      let fat = 0;
-      let carbs = 0;
-      
-      // Try to estimate weights, calories and macros for common ingredients
-      if (ingredientName.toLowerCase().includes('pasta') || 
-          ingredientName.toLowerCase().includes('noodle')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 200;
-        protein = 7.5;
-        fat = 1.1;
-        carbs = 43.2;
-      } else if (ingredientName.toLowerCase().includes('rice')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 130;
-        protein = 2.7;
-        fat = 0.3;
-        carbs = 28.2;
-      } else if (ingredientName.toLowerCase().includes('bread') || 
-                ingredientName.toLowerCase().includes('toast')) {
-        ingredientWeight = '60g';
-        ingredientCalories = 150;
-        protein = 5.4;
-        fat = 1.8;
-        carbs = 28.2;
-      } else if (ingredientName.toLowerCase().includes('potato')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 80;
-        protein = 2.0;
-        fat = 0.1;
-        carbs = 17.0;
-      } else if (ingredientName.toLowerCase().includes('salad') || 
-                ingredientName.toLowerCase().includes('lettuce')) {
-        ingredientWeight = '50g';
-        ingredientCalories = 25;
-        protein = 1.2;
-        fat = 0.2;
-        carbs = 3.0;
-      } else if (ingredientName.toLowerCase().includes('tomato')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 18;
-        protein = 0.9;
-        fat = 0.2;
-        carbs = 3.9;
-      } else if (ingredientName.toLowerCase().includes('cheese')) {
-        ingredientWeight = '30g';
-        ingredientCalories = 120;
-        protein = 7.8;
-        fat = 9.9;
-        carbs = 0.4;
-      } else if (ingredientName.toLowerCase().includes('milk')) {
-        ingredientWeight = '100ml';
-        ingredientCalories = 42;
-        protein = 3.4;
-        fat = 1.0;
-        carbs = 5.0;
-      } else if (ingredientName.toLowerCase().includes('egg')) {
-        ingredientWeight = '50g';
-        ingredientCalories = 78;
-        protein = 6.3;
-        fat = 5.3;
-        carbs = 0.6;
-      } else if (ingredientName.toLowerCase().includes('chicken') || 
-                ingredientName.toLowerCase().includes('poultry')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 165;
-        protein = 31.0;
-        fat = 3.6;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('beef') || 
-                ingredientName.toLowerCase().includes('steak')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 250;
-        protein = 26.0;
-        fat = 17.0;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('pork')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 242;
-        protein = 29.0;
-        fat = 14.0;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('fish') || 
-                ingredientName.toLowerCase().includes('salmon')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 206;
-        protein = 22.0;
-        fat = 13.0;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('meat') || 
-                ingredientName.toLowerCase().includes('salami')) {
-        ingredientWeight = '85g';
-        ingredientCalories = 250;
-        protein = 25.0;
-        fat = 15.0;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('oil') || 
-                ingredientName.toLowerCase().includes('butter')) {
-        ingredientWeight = '15g';
-        ingredientCalories = 135;
-        protein = 0.0;
-        fat = 15.0;
-        carbs = 0.0;
-      } else if (ingredientName.toLowerCase().includes('sugar') || 
-                ingredientName.toLowerCase().includes('sweetener')) {
-        ingredientWeight = '10g';
-        ingredientCalories = 40;
-        protein = 0.0;
-        fat = 0.0;
-        carbs = 10.0;
-      } else if (ingredientName.toLowerCase().includes('fruit') || 
-                ingredientName.toLowerCase().includes('apple') || 
-                ingredientName.toLowerCase().includes('banana')) {
-        ingredientWeight = '100g';
-        ingredientCalories = 60;
-        protein = 0.7;
-        fat = 0.3;
-        carbs = 14.0;
-      } else if (ingredientName.toLowerCase().includes('chocolate') || 
-                ingredientName.toLowerCase().includes('candy')) {
-        ingredientWeight = '25g';
-        ingredientCalories = 130;
-        protein = 1.5;
-        fat = 8.0;
-        carbs = 14.0;
-      } else if (ingredientName.toLowerCase().includes('nut') || 
-                ingredientName.toLowerCase().includes('peanut') || 
-                ingredientName.toLowerCase().includes('almond')) {
-        ingredientWeight = '30g';
-        ingredientCalories = 180;
-        protein = 6.0;
-        fat = 16.0;
-        carbs = 5.0;
-      } else {
-        // Default values
-        protein = ingredientCalories * 0.15 / 4; // Estimate 15% of calories from protein
-        fat = ingredientCalories * 0.30 / 9;     // Estimate 30% of calories from fat
-        carbs = ingredientCalories * 0.55 / 4;   // Estimate 55% of calories from carbs
-      }
-      
-      // Save macros for this ingredient with 1 decimal precision
-      ingredientMacros.push({
-        protein: parseFloat(protein.toFixed(1)),
-        fat: parseFloat(fat.toFixed(1)),
-        carbs: parseFloat(carbs.toFixed(1))
+      // Format each vitamin with proper unit
+      Object.keys(vitaminsData).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = vitaminsData[key];
+        
+        topLevelVitamins[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForVitamin(normalizedKey)
+        };
       });
+    }
+
+    // Check for minerals in the response
+    if (data.minerals || mealItem.minerals) {
+      const mineralsData = data.minerals || mealItem.minerals || {};
       
-      // Return formatted ingredient text
-      if (typeof ingredient === 'string') {
-        return `${ingredient} (${ingredientWeight}) ${ingredientCalories}kcal`;
+      // Format each mineral with proper unit
+      Object.keys(mineralsData).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = mineralsData[key];
+        
+        topLevelMinerals[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForMineral(normalizedKey)
+        };
+      });
+    }
+
+    // Check for other nutrients
+    if (data.other_nutrients || mealItem.other_nutrients || data.other || mealItem.other) {
+      const otherData = data.other_nutrients || mealItem.other_nutrients || data.other || mealItem.other || {};
+      
+      // Format each nutrient with proper unit
+      Object.keys(otherData).forEach(key => {
+        const normalizedKey = normalizeNutrientKey(key);
+        const value = otherData[key];
+        
+        topLevelOtherNutrients[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForNutrient(normalizedKey)
+        };
+      });
+    }
+
+    // Process common micronutrients that might be at the root level
+    const commonMicronutrients = [
+      'fiber', 'cholesterol', 'sodium', 'potassium', 'calcium', 'iron',
+      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
+      'thiamin', 'riboflavin', 'niacin', 'folate', 'vitamin_b12',
+      'magnesium', 'zinc', 'phosphorus', 'copper', 'manganese', 'selenium'
+    ];
+
+    // Check both top-level data and mealItem for micronutrients
+    for (const nutrient of commonMicronutrients) {
+      if (data[nutrient] !== undefined || mealItem[nutrient] !== undefined) {
+        const value = data[nutrient] !== undefined ? data[nutrient] : mealItem[nutrient];
+        const normalizedKey = normalizeNutrientKey(nutrient);
+        
+        // Determine if it's a vitamin, mineral, or other nutrient
+        if (normalizedKey.startsWith('vitamin_') || 
+            normalizedKey === 'thiamin' || 
+            normalizedKey === 'riboflavin' || 
+            normalizedKey === 'niacin' || 
+            normalizedKey === 'folate') {
+          topLevelVitamins[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForVitamin(normalizedKey)
+          };
+        } else if (['calcium', 'iron', 'magnesium', 'phosphorus', 'potassium', 
+                    'sodium', 'zinc', 'copper', 'manganese', 'selenium'].includes(normalizedKey)) {
+          topLevelMinerals[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForMineral(normalizedKey)
+          };
+        } else {
+          topLevelOtherNutrients[normalizedKey] = {
+            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+            unit: getUnitForNutrient(normalizedKey)
+          };
+        }
       }
-      return ingredient;
-    });
-    
+    }
+
+    // For each ingredient, create a basic macro structure
+    if (Array.isArray(mealItem.ingredient_macros) && mealItem.ingredient_macros.length > 0) {
+      // Use provided macros
+      mealItem.ingredient_macros.forEach((macro, index) => {
+        // Create macros object with all required fields
+        const macrosObj = {
+          protein: macro.protein || 0,
+          fat: macro.fat || 0,
+          carbs: macro.carbs || 0,
+          
+          // Add micronutrients to each ingredient
+          vitamins: { ...topLevelVitamins },
+          minerals: { ...topLevelMinerals },
+          other_nutrients: { ...topLevelOtherNutrients }
+        };
+        
+        ingredientMacros.push(macrosObj);
+      });
+    } else {
+      // No macros provided, create default entries for each ingredient
+      ingredientsList.forEach(() => {
+        const macrosObj = {
+          protein: 0,
+          fat: 0,
+          carbs: 0,
+          
+          // Add micronutrients to each ingredient
+          vitamins: { ...topLevelVitamins },
+          minerals: { ...topLevelMinerals },
+          other_nutrients: { ...topLevelOtherNutrients }
+        };
+        
+        ingredientMacros.push(macrosObj);
+      });
+    }
+
+    // Create a transformed object in our expected format
     return {
-      meal_name: mealItem.dish || "Mixed Meal",
-      ingredients: transformedIngredients,
+      meal_name: mealItem.meal_name || data.meal_name || "Unknown Meal",
+      ingredients: ingredientsList,
       ingredient_macros: ingredientMacros,
-      calories: mealItem.calories || 0,
-      protein: mealItem.macronutrients?.protein || 0,
-      fat: mealItem.macronutrients?.fat || 0,
-      carbs: mealItem.macronutrients?.carbohydrates || 0,
-      vitamin_c: 1.5, // Default value
-      health_score: "7/10" // Default value
+      calories: mealItem.calories || data.calories || 0,
+      protein: mealItem.protein || data.protein || 0,
+      fat: mealItem.fat || data.fat || 0,
+      carbs: mealItem.carbs || data.carbs || 0,
+      
+      // Include micronutrients at top level too for compatibility
+      vitamins: topLevelVitamins,
+      minerals: topLevelMinerals,
+      other_nutrients: topLevelOtherNutrients,
+      
+      health_score: mealItem.health_score || data.health_score || "5/10"
     };
   }
   
-  // Return a default format if nothing else works
-  return {
-    meal_name: "Mixed Meal",
-    ingredients: [
-      "Mixed ingredients (100g) 200kcal"
-    ],
-    ingredient_macros: [
-      {
-        protein: 10.5,
-        fat: 7.3,
-        carbs: 30.2
+  // If it's already in our format, just ensure we have ingredient_macros
+  const formattedData = { ...data };
+  
+  // Extract top-level micronutrients if available
+  const topLevelVitamins = formattedData.vitamins || {};
+  const topLevelMinerals = formattedData.minerals || {};
+  const topLevelOtherNutrients = formattedData.other_nutrients || {};
+
+  // Format vitamins with proper units if not already structured
+  if (topLevelVitamins) {
+    Object.keys(topLevelVitamins).forEach(key => {
+      const value = topLevelVitamins[key];
+      const normalizedKey = normalizeNutrientKey(key);
+      
+      if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+        topLevelVitamins[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForVitamin(normalizedKey)
+        };
       }
-    ],
-    calories: 500,
-    protein: 20,
-    fat: 15,
-    carbs: 60,
-    vitamin_c: 2,
-    health_score: "6/10"
-  };
+    });
+    formattedData.vitamins = topLevelVitamins;
+  }
+
+  // Format minerals with proper units if not already structured
+  if (topLevelMinerals) {
+    Object.keys(topLevelMinerals).forEach(key => {
+      const value = topLevelMinerals[key];
+      const normalizedKey = normalizeNutrientKey(key);
+      
+      if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+        topLevelMinerals[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForMineral(normalizedKey)
+        };
+      }
+    });
+    formattedData.minerals = topLevelMinerals;
+  }
+
+  // Format other nutrients with proper units if not already structured
+  if (topLevelOtherNutrients) {
+    Object.keys(topLevelOtherNutrients).forEach(key => {
+      const value = topLevelOtherNutrients[key];
+      const normalizedKey = normalizeNutrientKey(key);
+      
+      if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
+        topLevelOtherNutrients[normalizedKey] = {
+          amount: typeof value === 'number' ? value : parseFloat(value) || 0,
+          unit: getUnitForNutrient(normalizedKey)
+        };
+      }
+    });
+    formattedData.other_nutrients = topLevelOtherNutrients;
+  }
+
+  // Ensure ingredient_macros exists and has same length as ingredients
+  if (!formattedData.ingredient_macros || 
+      !Array.isArray(formattedData.ingredient_macros) || 
+      (formattedData.ingredients && 
+       formattedData.ingredients.length !== formattedData.ingredient_macros.length)) {
+    
+    formattedData.ingredient_macros = [];
+    
+    // Create macro objects for each ingredient
+    const ingredientCount = formattedData.ingredients ? formattedData.ingredients.length : 0;
+    for (let i = 0; i < ingredientCount; i++) {
+      formattedData.ingredient_macros.push({
+        protein: 0,
+        fat: 0,
+        carbs: 0,
+        
+        // Add micronutrients to each ingredient
+        vitamins: { ...topLevelVitamins },
+        minerals: { ...topLevelMinerals },
+        other_nutrients: { ...topLevelOtherNutrients }
+      });
+    }
+  } else {
+    // Add micronutrients to existing ingredient_macros objects
+    formattedData.ingredient_macros.forEach(macro => {
+      if (!macro.vitamins) macro.vitamins = { ...topLevelVitamins };
+      if (!macro.minerals) macro.minerals = { ...topLevelMinerals };
+      if (!macro.other_nutrients) macro.other_nutrients = { ...topLevelOtherNutrients };
+    });
+  }
+  
+  return formattedData;
+}
+
+// Helper function to normalize nutrient keys
+function normalizeNutrientKey(key) {
+  if (!key) return '';
+  
+  // Convert to lowercase
+  let normalizedKey = key.toLowerCase();
+  
+  // Replace spaces with underscores
+  normalizedKey = normalizedKey.replace(/\s+/g, '_');
+  
+  // Handle vitamin prefix formatting
+  if (/^vitamin\s*[a-z\d]+$/i.test(normalizedKey)) {
+    normalizedKey = normalizedKey.replace(/^vitamin\s*([a-z\d]+)$/i, 'vitamin_$1');
+  }
+  
+  return normalizedKey;
+}
+
+// Helper function to get unit for vitamins
+function getUnitForVitamin(vitaminName) {
+  vitaminName = vitaminName.toLowerCase();
+  
+  // Common vitamin units
+  if (vitaminName.includes('vitamin_d')) return 'IU';
+  if (vitaminName.includes('vitamin_a')) return 'IU';
+  if (vitaminName.includes('vitamin_e')) return 'mg';
+  if (vitaminName.includes('vitamin_k')) return 'μg';
+  if (vitaminName.includes('vitamin_c')) return 'mg';
+  if (vitaminName.includes('vitamin_b12')) return 'μg';
+  if (vitaminName.includes('folate') || 
+      vitaminName.includes('folic') || 
+      vitaminName.includes('vitamin_b9')) return 'μg';
+  if (vitaminName.includes('niacin') || 
+      vitaminName.includes('vitamin_b3')) return 'mg';
+  if (vitaminName.includes('riboflavin') || 
+      vitaminName.includes('vitamin_b2')) return 'mg';
+  if (vitaminName.includes('thiamin') || 
+      vitaminName.includes('vitamin_b1')) return 'mg';
+      
+  // Default unit for vitamins
+  return 'mg';
+}
+
+// Helper function to get unit for minerals
+function getUnitForMineral(mineralName) {
+  mineralName = mineralName.toLowerCase();
+  
+  // Common mineral units
+  if (mineralName.includes('sodium') || 
+      mineralName.includes('potassium') || 
+      mineralName.includes('calcium') ||
+      mineralName.includes('phosphorus') ||
+      mineralName.includes('magnesium')) return 'mg';
+  if (mineralName.includes('iron') || 
+      mineralName.includes('zinc') ||
+      mineralName.includes('manganese') ||
+      mineralName.includes('copper')) return 'mg';
+  if (mineralName.includes('selenium') ||
+      mineralName.includes('chromium') ||
+      mineralName.includes('molybdenum') ||
+      mineralName.includes('iodine')) return 'μg';
+      
+  // Default unit for minerals
+  return 'mg';
+}
+
+// Helper function to get unit for other nutrients
+function getUnitForNutrient(nutrientName) {
+  nutrientName = nutrientName.toLowerCase();
+  
+  // Common nutrient units
+  if (nutrientName.includes('fiber') || 
+      nutrientName.includes('sugar') || 
+      nutrientName.includes('starch')) return 'g';
+  if (nutrientName.includes('cholesterol')) return 'mg';
+  if (nutrientName.includes('caffeine')) return 'mg';
+  if (nutrientName.includes('alcohol')) return 'g';
+  
+  // Default unit
+  return 'g';
 }
 
 // Helper function to transform raw text to our required format
 function transformTextToRequiredFormat(text) {
+  // Extract any top-level micronutrients from the text
+  const topLevelVitamins = {};
+  const topLevelMinerals = {};
+  
+  // Look for vitamin and mineral mentions in the text
+  const vitaminMatches = text.match(/vitamin [a-z]\s*:\s*[\d\.]+/gi) || [];
+  const mineralMatches = text.match(/(iron|calcium|zinc|magnesium|potassium|sodium)\s*:\s*[\d\.]+/gi) || [];
+  
+  // Extract values from matches
+  vitaminMatches.forEach(match => {
+    const parts = match.split(':');
+    if (parts.length === 2) {
+      const name = parts[0].trim().toLowerCase().replace('vitamin ', '');
+      const value = parseFloat(parts[1].trim());
+      if (!isNaN(value)) {
+        topLevelVitamins[name] = value;
+      }
+    }
+  });
+  
+  mineralMatches.forEach(match => {
+    const parts = match.split(':');
+    if (parts.length === 2) {
+      const name = parts[0].trim().toLowerCase();
+      const value = parseFloat(parts[1].trim());
+      if (!isNaN(value)) {
+        topLevelMinerals[name] = value;
+      }
+    }
+  });
+  
   // Try to parse "Food item" format
   if (text.includes('Food item') || text.includes('FOOD ANALYSIS RESULTS')) {
     const lines = text.split('\n');
@@ -473,6 +630,10 @@ function transformTextToRequiredFormat(text) {
           let ingredientFat = 2.0;
           let ingredientCarbs = 10.0;
           
+          // Vitamins and minerals for this ingredient
+          let vitamins = {};
+          let minerals = {};
+          
           // Customize based on ingredient type - using same logic as above for consistency
           if (ingredient.toLowerCase().includes('pasta') || 
               ingredient.toLowerCase().includes('noodle')) {
@@ -481,132 +642,81 @@ function transformTextToRequiredFormat(text) {
             ingredientProtein = 7.5;
             ingredientFat = 1.1;
             ingredientCarbs = 43.2;
+            // Add micronutrients
+            vitamins = {
+              'b1': 0.2,
+              'b2': 0.1,
+              'b3': 1.7,
+              'b6': 0.1,
+              'folate': 18
+            };
+            minerals = {
+              'iron': 1.8,
+              'magnesium': 53,
+              'phosphorus': 189,
+              'zinc': 1.3,
+              'selenium': 63.2,
+              'potassium': 223
+            };
           } else if (ingredient.toLowerCase().includes('rice')) {
             ingredientWeight = '100g';
             ingredientCalories = 130;
             ingredientProtein = 2.7;
             ingredientFat = 0.3;
             ingredientCarbs = 28.2;
-          } else if (ingredient.toLowerCase().includes('bread') || 
-                    ingredient.toLowerCase().includes('toast')) {
-            ingredientWeight = '60g';
-            ingredientCalories = 150;
-            ingredientProtein = 5.4;
-            ingredientFat = 1.8;
-            ingredientCarbs = 28.2;
-          } else if (ingredient.toLowerCase().includes('potato')) {
+            // Add micronutrients
+            vitamins = {
+              'b1': 0.1,
+              'b3': 1.6,
+              'b6': 0.15,
+              'folate': 8
+            };
+            minerals = {
+              'iron': 0.4,
+              'magnesium': 25,
+              'phosphorus': 115,
+              'zinc': 1.2,
+              'selenium': 15.1,
+              'potassium': 115
+            };
+          } else if (ingredient.toLowerCase().includes('watermelon')) {
             ingredientWeight = '100g';
-            ingredientCalories = 80;
-            ingredientProtein = 2.0;
+            ingredientCalories = 30;
+            ingredientProtein = 0.6;
+            ingredientFat = 0.2;
+            ingredientCarbs = 7.6;
+            // Add micronutrients for watermelon
+            vitamins = {
+              'a': 569,
+              'c': 8.1,
+              'b6': 0.045,
+              'b1': 0.033
+            };
+            minerals = {
+              'potassium': 112,
+              'magnesium': 10,
+              'phosphorus': 11,
+              'zinc': 0.1
+            };
+          } else if (ingredient.toLowerCase().includes('pineapple')) {
+            ingredientWeight = '100g';
+            ingredientCalories = 50;
+            ingredientProtein = 0.5;
             ingredientFat = 0.1;
-            ingredientCarbs = 17.0;
-          } else if (ingredient.toLowerCase().includes('salad') || 
-                    ingredient.toLowerCase().includes('lettuce')) {
-            ingredientWeight = '50g';
-            ingredientCalories = 25;
-            ingredientProtein = 1.2;
-            ingredientFat = 0.2;
-            ingredientCarbs = 3.0;
-          } else if (ingredient.toLowerCase().includes('tomato')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 18;
-            ingredientProtein = 0.9;
-            ingredientFat = 0.2;
-            ingredientCarbs = 3.9;
-          } else if (ingredient.toLowerCase().includes('cheese')) {
-            ingredientWeight = '30g';
-            ingredientCalories = 120;
-            ingredientProtein = 7.8;
-            ingredientFat = 9.9;
-            ingredientCarbs = 0.4;
-          } else if (ingredient.toLowerCase().includes('milk')) {
-            ingredientWeight = '100ml';
-            ingredientCalories = 42;
-            ingredientProtein = 3.4;
-            ingredientFat = 1.0;
-            ingredientCarbs = 5.0;
-          } else if (ingredient.toLowerCase().includes('egg')) {
-            ingredientWeight = '50g';
-            ingredientCalories = 78;
-            ingredientProtein = 6.3;
-            ingredientFat = 5.3;
-            ingredientCarbs = 0.6;
-          } else if (ingredient.toLowerCase().includes('chicken') || 
-                    ingredient.toLowerCase().includes('poultry')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 165;
-            ingredientProtein = 31.0;
-            ingredientFat = 3.6;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('beef') || 
-                    ingredient.toLowerCase().includes('steak')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 250;
-            ingredientProtein = 26.0;
-            ingredientFat = 17.0;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('pork')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 242;
-            ingredientProtein = 29.0;
-            ingredientFat = 14.0;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('fish') || 
-                    ingredient.toLowerCase().includes('salmon')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 206;
-            ingredientProtein = 22.0;
-            ingredientFat = 13.0;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('meat') || 
-                    ingredient.toLowerCase().includes('salami')) {
-            ingredientWeight = '85g';
-            ingredientCalories = 250;
-            ingredientProtein = 25.0;
-            ingredientFat = 15.0;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('oil') || 
-                    ingredient.toLowerCase().includes('butter')) {
-            ingredientWeight = '15g';
-            ingredientCalories = 135;
-            ingredientProtein = 0.0;
-            ingredientFat = 15.0;
-            ingredientCarbs = 0.0;
-          } else if (ingredient.toLowerCase().includes('sugar') || 
-                    ingredient.toLowerCase().includes('sweetener')) {
-            ingredientWeight = '10g';
-            ingredientCalories = 40;
-            ingredientProtein = 0.0;
-            ingredientFat = 0.0;
-            ingredientCarbs = 10.0;
-          } else if (ingredient.toLowerCase().includes('fruit') || 
-                    ingredient.toLowerCase().includes('apple') || 
-                    ingredient.toLowerCase().includes('banana')) {
-            ingredientWeight = '100g';
-            ingredientCalories = 60;
-            ingredientProtein = 0.7;
-            ingredientFat = 0.3;
-            ingredientCarbs = 14.0;
-          } else if (ingredient.toLowerCase().includes('chocolate') || 
-                    ingredient.toLowerCase().includes('candy')) {
-            ingredientWeight = '25g';
-            ingredientCalories = 130;
-            ingredientProtein = 1.5;
-            ingredientFat = 8.0;
-            ingredientCarbs = 14.0;
-          } else if (ingredient.toLowerCase().includes('nut') || 
-                    ingredient.toLowerCase().includes('peanut') || 
-                    ingredient.toLowerCase().includes('almond')) {
-            ingredientWeight = '30g';
-            ingredientCalories = 180;
-            ingredientProtein = 6.0;
-            ingredientFat = 16.0;
-            ingredientCarbs = 5.0;
-          } else {
-            // Default value calculation
-            ingredientProtein = ingredientCalories * 0.15 / 4;
-            ingredientFat = ingredientCalories * 0.30 / 9;
-            ingredientCarbs = ingredientCalories * 0.55 / 4;
+            ingredientCarbs = 13.1;
+            // Add micronutrients for pineapple
+            vitamins = {
+              'c': 47.8,
+              'b1': 0.079,
+              'b6': 0.112,
+              'folate': 18
+            };
+            minerals = {
+              'manganese': 0.927,
+              'copper': 0.110,
+              'potassium': 109,
+              'magnesium': 12
+            };
           }
           
           if (ingredient.includes('(') && ingredient.includes(')')) {
@@ -616,11 +726,22 @@ function transformTextToRequiredFormat(text) {
             ingredients.push(`${ingredient} (${ingredientWeight}) ${ingredientCalories}kcal`);
           }
           
+          // Ensure each ingredient has vitamins/minerals by using top-level data if available
+          if (Object.keys(vitamins).length === 0 && Object.keys(topLevelVitamins).length > 0) {
+            vitamins = { ...topLevelVitamins };
+          }
+          
+          if (Object.keys(minerals).length === 0 && Object.keys(topLevelMinerals).length > 0) {
+            minerals = { ...topLevelMinerals };
+          }
+          
           // Add macros for this ingredient with 1 decimal precision
           ingredientMacros.push({
             protein: parseFloat(ingredientProtein.toFixed(1)),
             fat: parseFloat(ingredientFat.toFixed(1)),
-            carbs: parseFloat(ingredientCarbs.toFixed(1))
+            carbs: parseFloat(ingredientCarbs.toFixed(1)),
+            vitamins: vitamins,
+            minerals: minerals
           });
         }
       }
@@ -654,6 +775,23 @@ function transformTextToRequiredFormat(text) {
     // If we don't have any ingredients, add placeholders
     if (ingredients.length === 0) {
       ingredients.push("Mixed ingredients (100g) 200kcal");
+      ingredientMacros.push({
+        protein: 10.0,
+        fat: 7.0,
+        carbs: 30.0,
+        vitamins: Object.keys(topLevelVitamins).length > 0 ? { ...topLevelVitamins } : {
+          'c': 2.0,
+          'a': 100,
+          'b1': 0.1,
+          'b2': 0.2
+        },
+        minerals: Object.keys(topLevelMinerals).length > 0 ? { ...topLevelMinerals } : {
+          'calcium': 30,
+          'iron': 1.2,
+          'potassium': 150,
+          'magnesium': 20
+        }
+      });
     }
     
     // Calculate a health score (simple algorithm based on macros)
@@ -669,7 +807,9 @@ function transformTextToRequiredFormat(text) {
       fat: fat || 10,
       carbs: carbs || 20,
       vitamin_c: vitaminC || 2,
-      health_score: `${healthScore}/10`
+      health_score: `${healthScore}/10`,
+      vitamins: topLevelVitamins,
+      minerals: topLevelMinerals
     };
   }
   
@@ -683,7 +823,19 @@ function transformTextToRequiredFormat(text) {
       {
         protein: 10,
         fat: 7,
-        carbs: 30
+        carbs: 30,
+        vitamins: Object.keys(topLevelVitamins).length > 0 ? { ...topLevelVitamins } : {
+          'c': 2.0,
+          'a': 100,
+          'b1': 0.1,
+          'b2': 0.2
+        },
+        minerals: Object.keys(topLevelMinerals).length > 0 ? { ...topLevelMinerals } : {
+          'calcium': 30,
+          'iron': 1.2,
+          'potassium': 150,
+          'magnesium': 20
+        }
       }
     ],
     calories: 500,
@@ -691,257 +843,11 @@ function transformTextToRequiredFormat(text) {
     fat: 15,
     carbs: 60,
     vitamin_c: 2,
-    health_score: "6/10"
+    health_score: "6/10",
+    vitamins: topLevelVitamins,
+    minerals: topLevelMinerals
   };
 }
-
-// Helper function to get unit for other nutrients
-function getUnitForNutrient(nutrientName) {
-  nutrientName = nutrientName.toLowerCase();
-  
-  // Common nutrient units
-  if (nutrientName.includes('fiber') || 
-      nutrientName.includes('sugar') || 
-      nutrientName.includes('starch')) return 'g';
-  if (nutrientName.includes('cholesterol')) return 'mg';
-  if (nutrientName.includes('caffeine')) return 'mg';
-  if (nutrientName.includes('alcohol')) return 'g';
-  if (nutrientName.includes('omega_3') || 
-      nutrientName.includes('omega3') || 
-      nutrientName.includes('omega-3')) return 'mg';
-  if (nutrientName.includes('omega_6') || 
-      nutrientName.includes('omega6') || 
-      nutrientName.includes('omega-6')) return 'mg';
-  if (nutrientName.includes('chloride')) return 'mg';
-  if (nutrientName.includes('fluoride')) return 'mg';
-  
-  // Default unit
-  return 'g';
-}
-
-// Food API endpoint for nutrition calculation
-app.post('/api/nutrition', limiter, checkApiKey, async (req, res) => {
-  try {
-    console.log('Nutrition calculation endpoint called');
-    const { food_name, serving_size, operation_type, instructions, current_data } = req.body;
-
-    // Log the request data
-    console.log(`Food name: ${food_name}, Serving size: ${serving_size}`);
-    if (operation_type) console.log(`Operation type: ${operation_type}`);
-    if (instructions) console.log(`Instructions: ${instructions}`);
-    
-    // Check if we have the minimal required data
-    if (!food_name) {
-      console.error('No food name provided in request');
-      return res.status(400).json({
-        success: false,
-        error: 'Food name is required'
-      });
-    }
-
-    // Build the prompt based on request type
-    let systemPrompt, userPrompt;
-    
-    if (operation_type === 'GENERAL' || operation_type === 'REDUCE_CALORIES' || 
-        operation_type === 'INCREASE_CALORIES' || operation_type === 'REMOVE_INGREDIENT' || 
-        operation_type === 'ADD_INGREDIENT') {
-      // Food modification prompt
-      systemPrompt = 'You are a nutrition expert. Analyze the provided food description and make modifications based on instructions. Return a JSON with the updated nutritional values and ingredients, including detailed micronutrients and trace elements.';
-      
-      let foodDescription = `Food: ${food_name}\n`;
-      
-      if (current_data) {
-        if (current_data.calories) foodDescription += `Total calories: ${current_data.calories}\n`;
-        if (current_data.protein) foodDescription += `Total protein: ${current_data.protein}\n`;
-        if (current_data.fat) foodDescription += `Total fat: ${current_data.fat}\n`;
-        if (current_data.carbs) foodDescription += `Total carbs: ${current_data.carbs}\n`;
-        
-        if (current_data.ingredients && current_data.ingredients.length > 0) {
-          foodDescription += 'Ingredients:\n';
-          for (const ingredient of current_data.ingredients) {
-            let ingredientDesc = `- ${ingredient.name}`;
-            if (ingredient.amount) ingredientDesc += ` (${ingredient.amount})`;
-            if (ingredient.calories) ingredientDesc += `: ${ingredient.calories} calories`;
-            if (ingredient.protein) ingredientDesc += `, ${ingredient.protein}g protein`;
-            if (ingredient.fat) ingredientDesc += `, ${ingredient.fat}g fat`;
-            if (ingredient.carbs) ingredientDesc += `, ${ingredient.carbs}g carbs`;
-            foodDescription += ingredientDesc + '\n';
-          }
-        }
-      }
-      
-      if (instructions) {
-        foodDescription += `\nPlease ${operation_type === 'GENERAL' ? 'analyze and update' : operation_type.toLowerCase().replace('_', ' ')} the food according to the following instruction: '${instructions}'`;
-      }
-      
-      userPrompt = foodDescription;
-    } else {
-      // Basic nutrition calculation prompt
-      systemPrompt = 'You are a nutrition expert. Calculate accurate nutritional values for the provided food and serving size. Return a JSON with calories, protein, fat, carbs, and include detailed micronutrients (vitamins, minerals, and other nutrients like cholesterol, omega-3, omega-6, etc).';
-      userPrompt = `Calculate accurate nutritional values for ${food_name}, serving size: ${serving_size || '1 serving'}. Return a detailed JSON with calories, protein, fat, carbs and the following additional nutrients:\n
-1. Vitamins: vitamin_a, vitamin_d, vitamin_e, vitamin_k, vitamin_b12, folate
-2. Minerals: sodium, potassium, calcium, iron, magnesium, zinc, phosphorus, iodine, molybdenum, chloride, chromium, fluoride
-3. Other nutrients: cholesterol, omega_3, omega_6
-
-For each of these nutrients, provide the amount and appropriate unit of measurement. Be especially careful to include values for cholesterol, omega-3, omega-6, molybdenum, chloride, chromium, fluoride, and iodine if they are relevant to this food.`;
-    }
-
-    // Prepare request body for OpenAI
-    const requestBody = {
-      model: 'gpt-4o',
-      temperature: 0.5,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ],
-      max_tokens: 1500,
-      response_format: { type: 'json_object' }
-    };
-    
-    console.log('OpenAI request payload prepared');
-    
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('OpenAI API error:', response.status, errorData);
-      return res.status(response.status).json({
-        success: false,
-        error: `OpenAI API error: ${response.status}`,
-        details: errorData
-      });
-    }
-
-    console.log('OpenAI API response received');
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-      console.error('Invalid response format from OpenAI:', JSON.stringify(data));
-      return res.status(500).json({
-        success: false,
-        error: 'Invalid response from OpenAI',
-        raw_response: data
-      });
-    }
-
-    const content = data.choices[0].message.content;
-    console.log('OpenAI API response content (first 100 chars):', content.substring(0, 100) + '...');
-    
-    try {
-      // Parse the content as JSON
-      const parsedData = JSON.parse(content);
-      console.log('Successfully parsed JSON response for nutrition data');
-      
-      // Ensure we have initialized structures for micronutrients
-      if (!parsedData.vitamins) parsedData.vitamins = {};
-      if (!parsedData.minerals) parsedData.minerals = {};
-      if (!parsedData.other_nutrients) parsedData.other_nutrients = {};
-      
-      // Normalize the data to ensure consistent formatting for nutrients
-      Object.keys(parsedData.vitamins).forEach(key => {
-        const normalizedKey = normalizeNutrientKey(key);
-        const value = parsedData.vitamins[key];
-        
-        // Convert to standard format with amount and unit
-        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
-          parsedData.vitamins[normalizedKey] = {
-            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
-            unit: getUnitForVitamin(normalizedKey)
-          };
-          if (key !== normalizedKey) delete parsedData.vitamins[key];
-        }
-      });
-      
-      Object.keys(parsedData.minerals).forEach(key => {
-        const normalizedKey = normalizeNutrientKey(key);
-        const value = parsedData.minerals[key];
-        
-        // Convert to standard format with amount and unit
-        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
-          parsedData.minerals[normalizedKey] = {
-            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
-            unit: getUnitForMineral(normalizedKey)
-          };
-          if (key !== normalizedKey) delete parsedData.minerals[key];
-        }
-      });
-      
-      Object.keys(parsedData.other_nutrients).forEach(key => {
-        const normalizedKey = normalizeNutrientKey(key);
-        const value = parsedData.other_nutrients[key];
-        
-        // Convert to standard format with amount and unit
-        if (typeof value !== 'object' || !value.hasOwnProperty('amount')) {
-          parsedData.other_nutrients[normalizedKey] = {
-            amount: typeof value === 'number' ? value : parseFloat(value) || 0,
-            unit: getUnitForNutrient(normalizedKey)
-          };
-          if (key !== normalizedKey) delete parsedData.other_nutrients[key];
-        }
-      });
-      
-      // Make sure we have placeholders for specific nutrients we want to track
-      const requiredMinerals = ['iodine', 'molybdenum', 'chloride', 'chromium', 'fluoride'];
-      const requiredOtherNutrients = ['cholesterol', 'omega_3', 'omega_6'];
-      
-      // Add missing minerals with zero values
-      requiredMinerals.forEach(mineral => {
-        const normalizedKey = normalizeNutrientKey(mineral);
-        if (!parsedData.minerals[normalizedKey]) {
-          parsedData.minerals[normalizedKey] = {
-            amount: 0,
-            unit: getUnitForMineral(normalizedKey)
-          };
-        }
-      });
-      
-      // Add missing other nutrients with zero values
-      requiredOtherNutrients.forEach(nutrient => {
-        const normalizedKey = normalizeNutrientKey(nutrient);
-        if (!parsedData.other_nutrients[normalizedKey]) {
-          parsedData.other_nutrients[normalizedKey] = {
-            amount: 0,
-            unit: getUnitForNutrient(normalizedKey)
-          };
-        }
-      });
-      
-      return res.json({
-        success: true,
-        data: parsedData
-      });
-    } catch (error) {
-      console.error('JSON parsing failed:', error.message);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to parse nutrition data',
-        message: error.message
-      });
-    }
-  } catch (error) {
-    console.error('Server error:', error.message);
-    console.error(error.stack);
-    return res.status(500).json({
-      success: false,
-      error: 'Server error processing nutrition request',
-      message: error.message
-    });
-  }
-});
 
 // Start the server
 app.listen(PORT, () => {
