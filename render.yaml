@@ -2,13 +2,13 @@ services:
   - type: web
     name: food-analyzer-api
     env: node
-    buildCommand: bash render-build.sh
+    buildCommand: npm install && cd api-server && npm install
     startCommand: node server.js
     envVars:
-      - key: PORT
-        value: 3000
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3000
       - key: OPENAI_API_KEY
         sync: false
     domains:
