@@ -4,7 +4,8 @@
   "description": "Root package for DeepSeek API Bridge",
   "scripts": {
     "start": "node server.js",
-    "build": "npm install"
+    "build": "npm install",
+    "postinstall": "npm install dotenv express cors express-rate-limit node-fetch"
   },
   "engines": {
     "node": ">=14.0.0"
