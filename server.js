@@ -121,19 +121,19 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4-vision-preview',
         temperature: 0.2,
         messages: [
           {
             role: 'system',
-            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for calories, protein, fat, carbs, vitamin C\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient breakdown for EACH ingredient (protein, fat, carbs) - THIS IS THE MOST IMPORTANT PART\n6. Use decimal places and realistic estimates\n7. DO NOT respond with markdown code blocks or text explanations\n8. DO NOT prefix your response with "json" or ```\n9. ONLY RETURN A RAW JSON OBJECT\n10. FAILURE TO FOLLOW THESE INSTRUCTIONS WILL RESULT IN REJECTION\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": 12.5, "fat": 5.2, "carbs": 45.7},\n    {"protein": 8.3, "fat": 3.1, "carbs": 28.3}\n  ],\n  "calories": number,\n  "protein": number,\n  "fat": number,\n  "carbs": number,\n  "vitamin_c": number,\n  "health_score": "score/10"\n}'
+            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\n[CRITICAL NUTRITION ANALYSIS RULES]\n1. Calculate ALL nutrients with EXACT units:\n   - Protein: use "g" (e.g., "12.5g")\n   - Fat: use "g" (e.g., "5.2g")\n   - Carbs: use "g" (e.g., "45.7g")\n   - Vitamin C: use "mg" (e.g., "47mg")\n   - Calcium: use "mg" (e.g., "120mg")\n   - Iron: use "mg" (e.g., "2.5mg")\n   - Fiber: use "g" (e.g., "3.2g")\n   - Sugar: use "g" (e.g., "15.3g")\n   - Sodium: use "mg" (e.g., "450mg")\n2. NEVER separate numbers from their units with spaces\n3. Use decimal places for precise values\n4. Calculate health score (1-10) based on:\n   - Nutrient density\n   - Processing level\n   - Sugar/salt content\n   - Overall balance\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {"protein": "12.5g", "fat": "5.2g", "carbs": "45.7g"},\n    {"protein": "8.3g", "fat": "3.1g", "carbs": "28.3g"}\n  ],\n  "calories": "number kcal",\n  "protein": "number g",\n  "fat": "number g",\n  "carbs": "number g",\n  "vitamin_c": "number mg",\n  "calcium": "number mg",\n  "iron": "number mg",\n  "fiber": "number g",\n  "sugar": "number g",\n  "sodium": "number mg",\n  "health_score": "score/10"\n}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ACCURATE PROTEIN, FAT, AND CARB VALUES FOR EACH INGREDIENT:\n\n{\n  \"meal_name\": string (single name for entire meal),\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": number,\n  \"protein\": number,\n  \"fat\": number,\n  \"carbs\": number,\n  \"vitamin_c\": number,\n  \"health_score\": string\n}"
+                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ALL NUTRIENTS WITH PROPER UNITS:\n\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs for each ingredient,\n  \"calories\": string with kcal unit,\n  \"protein\": string with g unit,\n  \"fat\": string with g unit,\n  \"carbs\": string with g unit,\n  \"vitamin_c\": string with mg unit,\n  \"calcium\": string with mg unit,\n  \"iron\": string with mg unit,\n  \"fiber\": string with g unit,\n  \"sugar\": string with g unit,\n  \"sodium\": string with mg unit,\n  \"health_score\": string\n}"
               },
               {
                 type: 'image_url',
