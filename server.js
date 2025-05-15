@@ -49,6 +49,12 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
+    // Allow all localhost origins
+    if (origin.startsWith('http://localhost:')) {
+      console.log('Allowed localhost request from:', origin);
+      return callback(null, true);
+    }
+    
     // Check if the origin is allowed
     if (allowedOrigins.indexOf(origin) === -1) {
       console.log('Blocked request from origin:', origin);
@@ -59,7 +65,8 @@ app.use(cors({
     return callback(null, true);
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Body parser middleware
