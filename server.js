@@ -33,7 +33,15 @@ const limiter = rateLimit({
 // Get allowed origins from environment or use default
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:3000'];
+  : [
+      'http://localhost:3000',
+      'https://snap-food.onrender.com',
+      'https://deepseek-uhrc.onrender.com',
+      'http://snap-food.onrender.com',
+      'http://deepseek-uhrc.onrender.com'
+    ];
+
+console.log('Allowed origins:', allowedOrigins);
 
 // Configure CORS
 app.use(cors({
@@ -43,12 +51,14 @@ app.use(cors({
     
     // Check if the origin is allowed
     if (allowedOrigins.indexOf(origin) === -1) {
+      console.log('Blocked request from origin:', origin);
       const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
       return callback(new Error(msg), false);
     }
+    console.log('Allowed request from origin:', origin);
     return callback(null, true);
   },
-  methods: ['POST'],
+  methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true
 }));
 
