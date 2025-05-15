@@ -121,7 +121,7 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4-vision',
         temperature: 0.2,
         messages: [
           {
