@@ -2,7 +2,7 @@ services:
   - type: web
     name: food-analyzer-api
     env: node
-    buildCommand: npm install && cd api-server && npm install
+    buildCommand: npm install
     startCommand: node server.js
     envVars:
       - key: NODE_ENV

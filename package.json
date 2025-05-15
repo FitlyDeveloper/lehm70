@@ -1,14 +1,14 @@
 {
-  "name": "deepseek-api-bridge-root",
+  "name": "food-analyzer-api",
   "version": "1.0.0",
-  "description": "Root package for DeepSeek API Bridge",
+  "description": "Secure API for food image analysis",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "npm install && cd api-server && npm install",
-    "postinstall": "cd api-server && npm install"
+    "build": "npm install"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": "18.x"
   },
   "dependencies": {
     "cors": "^2.8.5",
