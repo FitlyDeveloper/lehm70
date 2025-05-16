@@ -2996,6 +2996,317 @@ class _CodiaPage extends State<CodiaPage>
   }
 
   // Helper method to parse current value from formatted strings like "10/20 mg"
+  Future<void> _processNutritionApiResponse(
+      Map<String, dynamic> nutritionData, String scanId) async {
+    try {
+      print('Processing nutrition data from API response for scan ID: $scanId');
+      _scanId = scanId; // Store the scan ID
+
+      // Extract ingredients with their individual nutrients
+      List<dynamic> ingredientMacros = nutritionData['ingredient_macros'] ?? [];
+
+      // Create maps to store aggregated nutrient values
+      Map<String, double> aggregatedVitamins = {};
+      Map<String, double> aggregatedMinerals = {};
+      Map<String, double> aggregatedOther = {};
+
+      // Process each ingredient and aggregate its nutrients
+      for (var ingredient in ingredientMacros) {
+        if (ingredient is Map<String, dynamic>) {
+          // Process vitamins from this ingredient
+          _processIngredientVitamins(ingredient, aggregatedVitamins);
+
+          // Process minerals from this ingredient
+          _processIngredientMinerals(ingredient, aggregatedMinerals);
+
+          // Process other nutrients from this ingredient
+          _processIngredientOtherNutrients(ingredient, aggregatedOther);
+        }
+      }
+
+      // Now update the UI with aggregated values from ingredients
+      _updateUIWithAggregatedNutrients(
+          aggregatedVitamins, aggregatedMinerals, aggregatedOther);
+
+      // If we have direct values in the API response, use those to supplement any missing nutrients
+      _processDirectNutrients(nutritionData);
+
+      // Save all nutrient data
+      await _saveNutrientData();
+
+      // Set flag to indicate successful data loading
+      setState(() {
+        _dataLoaded = true;
+      });
+    } catch (e) {
+      print('Error processing nutrition API response: $e');
+    }
+  }
+
+  // Helper method to process vitamins from a single ingredient
+  void _processIngredientVitamins(
+      Map<String, dynamic> ingredient, Map<String, double> aggregatedVitamins) {
+    // Map of API vitamin keys to UI vitamin names
+    Map<String, String> vitaminKeyToUIMap = {
+      'vitamin_a': 'Vitamin A',
+      'vitamin_c': 'Vitamin C',
+      'vitamin_d': 'Vitamin D',
+      'vitamin_e': 'Vitamin E',
+      'vitamin_k': 'Vitamin K',
+      'vitamin_b1': 'Vitamin B1',
+      'vitamin_b2': 'Vitamin B2',
+      'vitamin_b3': 'Vitamin B3',
+      'vitamin_b5': 'Vitamin B5',
+      'vitamin_b6': 'Vitamin B6',
+      'vitamin_b7': 'Vitamin B7',
+      'vitamin_b9': 'Vitamin B9',
+      'vitamin_b12': 'Vitamin B12',
+    };
+
+    // Process each vitamin
+    vitaminKeyToUIMap.forEach((apiKey, uiName) {
+      if (ingredient.containsKey(apiKey)) {
+        // Extract numeric value from value with unit
+        double value = _extractNumericValue(ingredient[apiKey].toString());
+        // Add to aggregated value
+        aggregatedVitamins[uiName] = (aggregatedVitamins[uiName] ?? 0) + value;
+      }
+    });
+  }
+
+  // Helper method to process minerals from a single ingredient
+  void _processIngredientMinerals(
+      Map<String, dynamic> ingredient, Map<String, double> aggregatedMinerals) {
+    // Map of API mineral keys to UI mineral names
+    Map<String, String> mineralKeyToUIMap = {
+      'calcium': 'Calcium',
+      'chloride': 'Chloride',
+      'chromium': 'Chromium',
+      'copper': 'Copper',
+      'fluoride': 'Fluoride',
+      'iodine': 'Iodine',
+      'iron': 'Iron',
+      'magnesium': 'Magnesium',
+      'manganese': 'Manganese',
+      'molybdenum': 'Molybdenum',
+      'phosphorus': 'Phosphorus',
+      'potassium': 'Potassium',
+      'selenium': 'Selenium',
+      'sodium': 'Sodium',
+      'zinc': 'Zinc',
+    };
+
+    // Process each mineral
+    mineralKeyToUIMap.forEach((apiKey, uiName) {
+      if (ingredient.containsKey(apiKey)) {
+        // Extract numeric value from value with unit
+        double value = _extractNumericValue(ingredient[apiKey].toString());
+        // Add to aggregated value
+        aggregatedMinerals[uiName] = (aggregatedMinerals[uiName] ?? 0) + value;
+      }
+    });
+  }
+
+  // Helper method to process other nutrients from a single ingredient
+  void _processIngredientOtherNutrients(
+      Map<String, dynamic> ingredient, Map<String, double> aggregatedOther) {
+    // Map of API other nutrient keys to UI nutrient names
+    Map<String, String> otherKeyToUIMap = {
+      'fiber': 'Fiber',
+      'cholesterol': 'Cholesterol',
+      'sugar': 'Sugar',
+      'saturated_fat': 'Saturated Fats',
+      'saturated_fats': 'Saturated Fats',
+      'omega_3': 'Omega-3',
+      'omega_6': 'Omega-6',
+    };
+
+    // Process each other nutrient
+    otherKeyToUIMap.forEach((apiKey, uiName) {
+      if (ingredient.containsKey(apiKey)) {
+        // Extract numeric value from value with unit
+        double value = _extractNumericValue(ingredient[apiKey].toString());
+        // Add to aggregated value
+        aggregatedOther[uiName] = (aggregatedOther[uiName] ?? 0) + value;
+      }
+    });
+  }
+
+  // Helper method to update UI with aggregated nutrients
+  void _updateUIWithAggregatedNutrients(
+      Map<String, double> aggregatedVitamins,
+      Map<String, double> aggregatedMinerals,
+      Map<String, double> aggregatedOther) {
+    // Update vitamins in UI
+    aggregatedVitamins.forEach((vitaminName, value) {
+      _updateVitaminWithValue(vitaminName, value);
+    });
+
+    // Update minerals in UI
+    aggregatedMinerals.forEach((mineralName, value) {
+      _updateMineralWithValue(mineralName, value);
+    });
+
+    // Update other nutrients in UI
+    aggregatedOther.forEach((nutrientName, value) {
+      _updateOtherNutrientWithValue(nutrientName, value);
+    });
+  }
+
+  // Helper method to process direct nutrient values from API response
+  void _processDirectNutrients(Map<String, dynamic> nutritionData) {
+    // Process vitamins - in case individual ingredients are missing some vitamins
+    _processDirectVitamins(nutritionData);
+
+    // Process minerals - in case individual ingredients are missing some minerals
+    _processDirectMinerals(nutritionData);
+
+    // Process other nutrients - in case individual ingredients are missing some other nutrients
+    _processDirectOtherNutrients(nutritionData);
+  }
+
+  // Process direct vitamin values from API response
+  void _processDirectVitamins(Map<String, dynamic> nutritionData) {
+    // Map of API vitamin keys to UI vitamin names
+    Map<String, String> vitaminKeyToUIMap = {
+      'vitamin_a': 'Vitamin A',
+      'vitamin_c': 'Vitamin C',
+      'vitamin_d': 'Vitamin D',
+      'vitamin_e': 'Vitamin E',
+      'vitamin_k': 'Vitamin K',
+      'vitamin_b1': 'Vitamin B1',
+      'vitamin_b2': 'Vitamin B2',
+      'vitamin_b3': 'Vitamin B3',
+      'vitamin_b5': 'Vitamin B5',
+      'vitamin_b6': 'Vitamin B6',
+      'vitamin_b7': 'Vitamin B7',
+      'vitamin_b9': 'Vitamin B9',
+      'vitamin_b12': 'Vitamin B12',
+    };
+
+    // Only use direct values if vitamin UI value is 0 or missing
+    vitaminKeyToUIMap.forEach((apiKey, uiName) {
+      if (nutritionData.containsKey(apiKey) &&
+          (!vitamins.containsKey(uiName) ||
+              vitamins[uiName]!.progress == 0 ||
+              _parseCurrentValue(vitamins[uiName]!.value) == 0)) {
+        double value = _extractNumericValue(nutritionData[apiKey].toString());
+        if (value > 0) {
+          _updateVitaminWithValue(uiName, value);
+        }
+      }
+    });
+  }
+
+  // Process direct mineral values from API response
+  void _processDirectMinerals(Map<String, dynamic> nutritionData) {
+    // Map of API mineral keys to UI mineral names
+    Map<String, String> mineralKeyToUIMap = {
+      'calcium': 'Calcium',
+      'chloride': 'Chloride',
+      'chromium': 'Chromium',
+      'copper': 'Copper',
+      'fluoride': 'Fluoride',
+      'iodine': 'Iodine',
+      'iron': 'Iron',
+      'magnesium': 'Magnesium',
+      'manganese': 'Manganese',
+      'molybdenum': 'Molybdenum',
+      'phosphorus': 'Phosphorus',
+      'potassium': 'Potassium',
+      'selenium': 'Selenium',
+      'sodium': 'Sodium',
+      'zinc': 'Zinc',
+    };
+
+    // Only use direct values if mineral UI value is 0 or missing
+    mineralKeyToUIMap.forEach((apiKey, uiName) {
+      if (nutritionData.containsKey(apiKey) &&
+          (!minerals.containsKey(uiName) ||
+              minerals[uiName]!.progress == 0 ||
+              _parseCurrentValue(minerals[uiName]!.value) == 0)) {
+        double value = _extractNumericValue(nutritionData[apiKey].toString());
+        if (value > 0) {
+          _updateMineralWithValue(uiName, value);
+        }
+      }
+    });
+  }
+
+  // Process direct other nutrient values from API response
+  void _processDirectOtherNutrients(Map<String, dynamic> nutritionData) {
+    // Process root level other nutrients (direct format from SnapFood)
+    Map<String, String> rootKeyToOtherMap = {
+      'fiber': 'Fiber',
+      'cholesterol': 'Cholesterol',
+      'sugar': 'Sugar',
+      'saturated_fat': 'Saturated Fats',
+      'saturated_fats': 'Saturated Fats', // Add this to match API response
+      'omega_3': 'Omega-3',
+      'omega_6': 'Omega-6',
+    };
+
+    // Only use direct values if other nutrient UI value is 0 or missing
+    rootKeyToOtherMap.forEach((apiKey, uiName) {
+      if (nutritionData.containsKey(apiKey) &&
+          (!other.containsKey(uiName) ||
+              other[uiName]!.progress == 0 ||
+              _parseCurrentValue(other[uiName]!.value) == 0)) {
+        double value = _extractNumericValue(nutritionData[apiKey].toString());
+        if (value > 0) {
+          _updateOtherNutrientWithValue(uiName, value);
+        }
+      }
+    });
+  }
+
+  // Helper method to save nutrient data to shared preferences
+  Future<void> _saveNutrientData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Create a map to store all nutrient data
+      Map<String, dynamic> nutrientData = {
+        'vitamins': {},
+        'minerals': {},
+        'other': {},
+      };
+
+      // Save vitamins data
+      vitamins.forEach((key, value) {
+        nutrientData['vitamins'][key] = {
+          'value': value.value,
+          'progress': value.progress,
+          'percent': value.percent,
+        };
+      });
+
+      // Save minerals data
+      minerals.forEach((key, value) {
+        nutrientData['minerals'][key] = {
+          'value': value.value,
+          'progress': value.progress,
+          'percent': value.percent,
+        };
+      });
+
+      // Save other nutrients data
+      other.forEach((key, value) {
+        nutrientData['other'][key] = {
+          'value': value.value,
+          'progress': value.progress,
+          'percent': value.percent,
+        };
+      });
+
+      // Save the data using the scan ID as part of the key
+      await prefs.setString('nutrient_data_$_scanId', jsonEncode(nutrientData));
+
+      print('Nutrient data saved successfully for scan ID: $_scanId');
+    } catch (e) {
+      print('Error saving nutrient data: $e');
+    }
+  }
 }
 
 // Simple class to hold nutrient info
