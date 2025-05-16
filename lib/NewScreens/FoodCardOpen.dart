@@ -1629,6 +1629,143 @@ class _FoodCardOpenState extends State<FoodCardOpen>
                   ),
                 ),
               ),
+              // Add Clear Data option
+              _buildPrivacyOption(
+                  'Clear Data', 'assets/images/clearicon.png', _selectedPrivacy,
+                  (value) {
+                // Close the bottom sheet
+                Navigator.pop(context);
+
+                // Show confirmation dialog for clearing data
+                showDialog(
+                  context: context,
+                  barrierColor: Colors.black.withOpacity(0.5),
+                  builder: (BuildContext context) {
+                    return Dialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      insetPadding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Container(
+                        width: 326,
+                        height: 182,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Title
+                              Text(
+                                "Clear Data?",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'SF Pro Display',
+                                ),
+                              ),
+                              SizedBox(height: 20),
+
+                              // Clear Data button
+                              Container(
+                                width: 267,
+                                height: 40,
+                                margin: EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.white,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      offset: Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Centered text
+                                    Text(
+                                      "Clear Data",
+                                      style: TextStyle(
+                                        color: Color(0xFFE97372),
+                                        fontSize: 16,
+                                        fontFamily: 'SF Pro Display',
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    // Full-width button for tap area
+                                    Positioned.fill(
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          onTap: () {
+                                            // Use the dedicated clear data method
+                                            Navigator.pop(context);
+                                            _clearFoodData();
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Cancel button
+                              Container(
+                                width: 267,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.white,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      offset: Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Centered text
+                                    Text(
+                                      "Cancel",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontFamily: 'SF Pro Display',
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    // Full-width button for tap area
+                                    Positioned.fill(
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          onTap: () {
+                                            Navigator.pop(context);
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }),
             ],
           ),
         ),
@@ -7577,5 +7714,62 @@ class _FoodCardOpenState extends State<FoodCardOpen>
         print('Error updating temporary nutrition data: $e');
       }
     });
+  }
+
+  // Method to clear stored data for current food item
+  Future<void> _clearFoodData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final foodId = _foodName.replaceAll(' ', '_').toLowerCase();
+
+      // Clear ingredients
+      await prefs.remove('food_ingredients_$foodId');
+      // Clear nutrition data
+      await prefs.remove('food_nutrition_$foodId');
+      // Create a proper ID based on the calories (matching the format used elsewhere)
+      String caloriesId = _calories.replaceAll('.', '_');
+      await prefs
+          .remove('nutrition_data_food_nutrition_${foodId}_${caloriesId}');
+      await prefs
+          .remove('food_nutrition_data_food_nutrition_${foodId}_${caloriesId}');
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Data cleared for $_foodName. Please restart app.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Reset current ingredients
+      setState(() {
+        // Reset to empty list
+        _ingredients = [];
+
+        // Process ingredients from API data if available
+        if (widget.ingredients != null && widget.ingredients!.isNotEmpty) {
+          // Re-process ingredients from widget
+          _initFoodData();
+        } else {
+          // Add a default ingredient that matches our API format
+          _ingredients.add({
+            'name': 'Mixed_ingredients',
+            'amount': '100g',
+            'calories': 200,
+            'protein': 10.0,
+            'fat': 7.0,
+            'carbs': 30.0,
+          });
+        }
+
+        // Recalculate nutrition totals
+        _calculateTotalNutrition();
+        _markAsUnsaved();
+      });
+    } catch (e) {
+      print('Error clearing food data: $e');
+    }
   }
 }
