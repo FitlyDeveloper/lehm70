@@ -147,9 +147,15 @@ class FoodAnalyzerApi {
           print('✓ $vitamin present in response');
           // Check if unit is included or needs to be added
           var value = vitamins[vitamin];
-          if (value is num || value is String) {
-            // Ensure value has unit attached
+          if (value is num) {
+            // If pure number, add the unit
             vitamins[vitamin] = '$value $expectedUnit';
+          } else if (value is String) {
+            // If string without unit, add the unit
+            if (!value.contains(expectedUnit) && !_containsAnyUnit(value)) {
+              vitamins[vitamin] = '$value $expectedUnit';
+            }
+            // If it's already a formatted string with units, leave it as is
           }
         }
       });
@@ -166,9 +172,15 @@ class FoodAnalyzerApi {
           print('✓ $mineral present in response');
           // Check if unit is included or needs to be added
           var value = minerals[mineral];
-          if (value is num || value is String) {
-            // Ensure value has unit attached
+          if (value is num) {
+            // If pure number, add the unit
             minerals[mineral] = '$value $expectedUnit';
+          } else if (value is String) {
+            // If string without unit, add the unit
+            if (!value.contains(expectedUnit) && !_containsAnyUnit(value)) {
+              minerals[mineral] = '$value $expectedUnit';
+            }
+            // If it's already a formatted string with units, leave it as is
           }
         }
       });
@@ -185,13 +197,30 @@ class FoodAnalyzerApi {
           print('✓ $nutrient present in response');
           // Check if unit is included or needs to be added
           var value = other[nutrient];
-          if (value is num || value is String) {
-            // Ensure value has unit attached
+          if (value is num) {
+            // If pure number, add the unit
             other[nutrient] = '$value $expectedUnit';
+          } else if (value is String) {
+            // If string without unit, add the unit
+            if (!value.contains(expectedUnit) && !_containsAnyUnit(value)) {
+              other[nutrient] = '$value $expectedUnit';
+            }
+            // If it's already a formatted string with units, leave it as is
           }
         }
       });
     }
+  }
+
+  // Helper method to check if a string contains any unit
+  static bool _containsAnyUnit(String value) {
+    // Common units to check for
+    List<String> commonUnits = ['g', 'mg', 'mcg', 'μg', 'iu', 'µg', 'ml', 'l'];
+
+    // Check if string already contains any common unit
+    return commonUnits.any((unit) =>
+        value.toLowerCase().contains(' $unit') ||
+        value.toLowerCase().endsWith(unit));
   }
 
   // Check if the API is available
