@@ -49,19 +49,7 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Allow all localhost origins
-    if (origin.startsWith('http://localhost:')) {
-      console.log('Allowed localhost request from:', origin);
-      return callback(null, true);
-    }
-    
-    // Check if the origin is allowed
-    if (allowedOrigins.indexOf(origin) === -1) {
-      console.log('Blocked request from origin:', origin);
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    console.log('Allowed request from origin:', origin);
+    // Allow all origins
     return callback(null, true);
   },
   methods: ['GET', 'POST', 'OPTIONS'],
