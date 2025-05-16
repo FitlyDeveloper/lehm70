@@ -169,6 +169,9 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       
       // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
+        // Add micronutrients to top level
+        addMicronutrientsToTopLevel(parsedData);
+        
         return res.json({
           success: true,
           data: parsedData
@@ -186,7 +189,7 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       console.log('Direct JSON parsing failed, attempting to extract JSON from text');
       // Try to extract JSON from the text
       const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                      content.match(/\{[\s\S]*\}/);
+                       content.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
         const jsonContent = jsonMatch[0].replace(/```json\n|```/g, '').trim();
@@ -196,6 +199,9 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
           
           // Check if we have the expected meal_name format
           if (parsedData.meal_name) {
+            // Add micronutrients to top level
+            addMicronutrientsToTopLevel(parsedData);
+            
             return res.json({
               success: true,
               data: parsedData
@@ -717,6 +723,48 @@ function transformTextToRequiredFormat(text) {
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
   };
+}
+
+// Helper function to process micronutrients and add them to top level
+function addMicronutrientsToTopLevel(parsedData) {
+  if (parsedData.ingredient_macros && parsedData.ingredient_macros.length > 0) {
+    // Initialize micronutrient totals
+    const micronutrients = [
+      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 
+      'calcium', 'iron', 'potassium', 'fiber', 'sugar', 'sodium'
+    ];
+    
+    // Sum up all micronutrients from all ingredients
+    micronutrients.forEach(nutrient => {
+      if (!parsedData[nutrient]) {
+        // Calculate total for this micronutrient
+        let total = 0;
+        parsedData.ingredient_macros.forEach(ingredient => {
+          if (ingredient[nutrient]) {
+            // Extract numeric value from string (e.g. "45mg" -> 45)
+            const value = parseFloat(ingredient[nutrient]);
+            if (!isNaN(value)) {
+              total += value;
+            }
+          }
+        });
+        
+        // Add total to top-level response if we have a value
+        if (total > 0) {
+          // Get unit from first ingredient that has this nutrient
+          let unit = '';
+          for (const ingredient of parsedData.ingredient_macros) {
+            if (ingredient[nutrient]) {
+              unit = ingredient[nutrient].replace(/[\d.]/g, '');
+              break;
+            }
+          }
+          parsedData[nutrient] = total.toFixed(1) + unit;
+        }
+      }
+    });
+  }
+  return parsedData;
 }
 
 // Start the server
