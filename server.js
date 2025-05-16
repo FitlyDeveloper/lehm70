@@ -401,13 +401,13 @@ function transformToRequiredFormat(data) {
   return {
     meal_name: "Mixed Meal",
     ingredients: [
-      "Mixed ingredients (100g) 200kcal"
+      "Mixed_ingredients (100g) 200kcal"  // Use underscore instead of space to avoid splitting
     ],
     ingredient_macros: [
       {
-        protein: 10.5,
-        fat: 7.3,
-        carbs: 30.2,
+        protein: "10.5g",  // Use string format with units to match API spec
+        fat: "7.3g",
+        carbs: "30.2g",
         vitamins: Object.keys(topLevelVitamins).length > 0 ? 
           { ...topLevelVitamins } : 
           {
@@ -650,11 +650,11 @@ function transformTextToRequiredFormat(text) {
     
     // If we don't have any ingredients, add placeholders
     if (ingredients.length === 0) {
-      ingredients.push("Mixed ingredients (100g) 200kcal");
+      ingredients.push("Mixed_ingredients (100g) 200kcal");  // Use underscore instead of space
       ingredientMacros.push({
-        protein: 10.0,
-        fat: 7.0,
-        carbs: 30.0,
+        protein: "10.0g",  // Use string format with units
+        fat: "7.0g",
+        carbs: "30.0g",
         vitamins: Object.keys(topLevelVitamins).length > 0 ? { ...topLevelVitamins } : {
           'c': 2.0,
           'a': 100,
@@ -693,13 +693,13 @@ function transformTextToRequiredFormat(text) {
   return {
     meal_name: "Mixed Meal",
     ingredients: [
-      "Mixed ingredients (100g) 200kcal"
+      "Mixed_ingredients (100g) 200kcal"  // Use underscore instead of space
     ],
     ingredient_macros: [
       {
-        protein: 10,
-        fat: 7,
-        carbs: 30,
+        protein: "10g",  // Use string format with units
+        fat: "7g",
+        carbs: "30g",
         vitamins: Object.keys(topLevelVitamins).length > 0 ? { ...topLevelVitamins } : {
           'c': 2.0,
           'a': 100,
@@ -714,11 +714,11 @@ function transformTextToRequiredFormat(text) {
         }
       }
     ],
-    calories: 500,
-    protein: 20,
-    fat: 15,
-    carbs: 60,
-    vitamin_c: 2,
+    calories: "500kcal",  // Use string format with units
+    protein: "20g",
+    fat: "15g",
+    carbs: "60g",
+    vitamin_c: "2mg",  // Use string format with units
     health_score: "6/10",
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
