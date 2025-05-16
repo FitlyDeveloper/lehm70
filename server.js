@@ -166,12 +166,15 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       // First try direct parsing
       const parsedData = JSON.parse(content);
       console.log('Successfully parsed JSON response');
+      console.log('RAW OPENAI DATA:', content.substring(0, 1000) + (content.length > 1000 ? '...' : ''));
       
       // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
+        // Process the data to add micronutrients
+        const processedData = addMicronutrientsToTopLevel(parsedData);
         return res.json({
           success: true,
-          data: parsedData
+          data: processedData
         });
       } else {
         // Transform the response to match our expected format
@@ -193,12 +196,15 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         try {
           const parsedData = JSON.parse(jsonContent);
           console.log('Successfully extracted and parsed JSON from text');
+          console.log('RAW EXTRACTED JSON:', jsonContent.substring(0, 1000) + (jsonContent.length > 1000 ? '...' : ''));
           
           // Check if we have the expected meal_name format
           if (parsedData.meal_name) {
+            // Process the data to add micronutrients
+            const processedData = addMicronutrientsToTopLevel(parsedData);
             return res.json({
               success: true,
-              data: parsedData
+              data: processedData
             });
           } else {
             // Transform the response to match our expected format
@@ -719,14 +725,83 @@ function transformTextToRequiredFormat(text) {
   };
 }
 
+// Error handling for unhandled promises
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Promise Rejection:', error);
+});
+
+// Utility function to process ingredient nutrients
+// This ensures compatibility with both string and numeric values
+function addMicronutrientsToTopLevel(data) {
+  if (!data || !data.ingredient_macros || !Array.isArray(data.ingredient_macros)) {
+    console.log('No ingredient macros to process');
+    return data;
+  }
+  
+  try {
+    console.log('RAW OPENAI DATA:', JSON.stringify(data).substring(0, 1000) + (JSON.stringify(data).length > 1000 ? '...' : ''));
+    
+    // Extract and consolidate nutrients from all ingredients
+    const allNutrients = {};
+    const nutrientsToExtract = [
+      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e',
+      'calcium', 'iron', 'potassium', 'fiber', 'sugar', 'sodium'
+    ];
+    
+    // Process each ingredient
+    data.ingredient_macros.forEach(ingredient => {
+      nutrientsToExtract.forEach(nutrient => {
+        if (nutrient in ingredient) {
+          // Convert to proper format handling both string and numeric values
+          const value = ingredient[nutrient];
+          if (typeof value === 'string') {
+            // String value (e.g. "12.5g") - just use as is
+            allNutrients[nutrient] = value;
+          } else if (typeof value === 'number') {
+            // Numeric value - convert to string with appropriate unit
+            let unit = '';
+            if (nutrient === 'protein' || nutrient === 'fat' || nutrient === 'carbs' || nutrient === 'fiber' || nutrient === 'sugar') {
+              unit = 'g';
+            } else if (nutrient === 'vitamin_a') {
+              unit = 'IU';
+            } else if (nutrient === 'vitamin_c' || nutrient === 'calcium' || nutrient === 'iron' || nutrient === 'potassium' || nutrient === 'sodium') {
+              unit = 'mg';
+            } else if (nutrient === 'vitamin_d') {
+              unit = 'μg';
+            } else if (nutrient === 'vitamin_e') {
+              unit = 'mg';
+            }
+            allNutrients[nutrient] = value + unit;
+          }
+        }
+      });
+    });
+    
+    // Add all extracted nutrients to the top level
+    Object.keys(allNutrients).forEach(nutrient => {
+      if (!data[nutrient]) {
+        data[nutrient] = allNutrients[nutrient];
+      }
+    });
+    
+    console.log('===== INGREDIENT-SPECIFIC NUTRIENTS =====');
+    console.log('===== PROCESSED NUTRIENTS FOR NUTRITION TRACKING =====');
+    console.log(`  protein: ${data.protein || 0} g`);
+    console.log(`  fat: ${data.fat || 0} g`);
+    console.log(`  carbs: ${data.carbs || 0} g`);
+    console.log(`  vitamin_c: ${data.vitamin_c ? data.vitamin_c.toString().replace(/[^\d\.]/g, '') : 0} mg`);
+    console.log('=======================================================');
+    
+    return data;
+  } catch (error) {
+    console.error('JSON extraction failed:', error);
+    return data;
+  }
+}
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`API Key configured: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
   console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
-});
-
-// Error handling for unhandled promises
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Promise Rejection:', error);
 }); 
