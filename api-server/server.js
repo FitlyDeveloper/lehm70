@@ -393,13 +393,43 @@ function transformToRequiredFormat(data) {
     return transformedData;
   }
   
+  // If we have ingredients in the API response, use them instead of generics
+  if (data.ingredients && Array.isArray(data.ingredients) && data.ingredients.length > 0) {
+    // We have actual ingredients from the API, let's make sure we have macros for each
+    const ingredients = data.ingredients;
+    const ingredientMacros = data.ingredient_macros || [];
+    
+    // Make sure we have a macro object for each ingredient
+    while (ingredientMacros.length < ingredients.length) {
+      // Create default macro values
+      const ingredientCalories = 200;
+      ingredientMacros.push({
+        protein: ingredientCalories * 0.2 / 4, // 20% of calories from protein
+        fat: ingredientCalories * 0.3 / 9, // 30% of calories from fat
+        carbs: ingredientCalories * 0.5 / 4, // 50% of calories from carbs
+      });
+    }
+    
+    // Return the actual ingredient data
+    return {
+      meal_name: data.meal_name || "Analyzed Food",
+      ingredients: ingredients,
+      ingredient_macros: ingredientMacros,
+      calories: data.calories || 500,
+      protein: data.protein || 20,
+      fat: data.fat || 15,
+      carbs: data.carbs || 60,
+      health_score: data.health_score || "6/10"
+    };
+  }
+  
   // If we have top-level vitamins or minerals in the input data, use them
   const topLevelVitamins = data.vitamins || {};
   const topLevelMinerals = data.minerals || {};
   
   // Return a default format if nothing else works
   return {
-    meal_name: "Mixed Meal",
+    meal_name: data.meal_name || "Mixed Meal",
     ingredients: [
       "Mixed ingredients (100g) 200kcal"
     ],
@@ -426,12 +456,12 @@ function transformToRequiredFormat(data) {
           }
       }
     ],
-    calories: 500,
-    protein: 20,
-    fat: 15,
-    carbs: 60,
+    calories: data.calories || 500,
+    protein: data.protein || 20,
+    fat: data.fat || 15,
+    carbs: data.carbs || 60,
     vitamin_c: 2,
-    health_score: "6/10",
+    health_score: data.health_score || "6/10",
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
   };
