@@ -840,9 +840,15 @@ function addMicronutrientsToTopLevel(parsedData) {
         // Calculate total for this micronutrient
         let total = 0;
         parsedData.ingredient_macros.forEach(ingredient => {
-          if (ingredient[nutrient]) {
-            // Extract numeric value from string (e.g. "45mg" -> 45)
-            const value = parseFloat(ingredient[nutrient]);
+          if (ingredient[nutrient] !== undefined) {
+            // Extract numeric value - may be a number or a string with units
+            let value;
+            if (typeof ingredient[nutrient] === 'number') {
+              value = ingredient[nutrient];
+            } else if (typeof ingredient[nutrient] === 'string') {
+              value = parseFloat(ingredient[nutrient]);
+            }
+            
             if (!isNaN(value)) {
               total += value;
             }
@@ -851,12 +857,25 @@ function addMicronutrientsToTopLevel(parsedData) {
         
         // Add total to top-level response if we have a value
         if (total > 0) {
-          // Get unit from first ingredient that has this nutrient
+          // Default unit for the nutrient
           let unit = '';
+          // Try to get unit from first ingredient that has this nutrient
           for (const ingredient of parsedData.ingredient_macros) {
-            if (ingredient[nutrient]) {
-              unit = ingredient[nutrient].replace(/[\d.]/g, '');
-              break;
+            if (ingredient[nutrient] !== undefined) {
+              if (typeof ingredient[nutrient] === 'string') {
+                // Extract unit from string (e.g. "45mg" -> "mg")
+                unit = ingredient[nutrient].replace(/[\d.]/g, '');
+                break;
+              } else {
+                // Use default units based on nutrient type
+                if (nutrient === 'vitamin_a') unit = 'IU';
+                else if (nutrient === 'vitamin_c' || nutrient === 'vitamin_e' || 
+                         nutrient === 'calcium' || nutrient === 'iron' || 
+                         nutrient === 'potassium' || nutrient === 'sodium') unit = 'mg';
+                else if (nutrient === 'vitamin_d') unit = 'μg';
+                else if (nutrient === 'fiber' || nutrient === 'sugar') unit = 'g';
+                break;
+              }
             }
           }
           parsedData[nutrient] = total.toFixed(1) + unit;
