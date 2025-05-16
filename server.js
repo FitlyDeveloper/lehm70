@@ -110,18 +110,18 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       },
       body: JSON.stringify({
         model: 'gpt-4-vision-preview',
-        temperature: 0.2,
+        temperature: 0.1,
         messages: [
           {
             role: 'system',
-            content: '[STRICTLY JSON ONLY] You are a nutrition expert analyzing food images. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\n[CRITICAL NUTRITION ANALYSIS RULES]\n1. Calculate ALL nutrients with EXACT units:\n   - Protein: use "g" (e.g., "12.5g")\n   - Fat: use "g" (e.g., "5.2g")\n   - Carbs: use "g" (e.g., "45.7g")\n   - Vitamin A: use "IU" (e.g., "300IU")\n   - Vitamin C: use "mg" (e.g., "47mg")\n   - Vitamin D: use "μg" (e.g., "1.2μg")\n   - Vitamin E: use "mg" (e.g., "2.5mg")\n   - Calcium: use "mg" (e.g., "120mg")\n   - Iron: use "mg" (e.g., "2.5mg")\n   - Potassium: use "mg" (e.g., "350mg")\n   - Fiber: use "g" (e.g., "3.2g")\n   - Sugar: use "g" (e.g., "15.3g")\n   - Sodium: use "mg" (e.g., "450mg")\n2. NEVER separate numbers from their units with spaces\n3. Use decimal places for precise values\n4. Calculate health score (1-10) based on:\n   - Nutrient density\n   - Processing level\n   - Sugar/salt content\n   - Overall balance\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {\n      "protein": "12.5g", \n      "fat": "5.2g", \n      "carbs": "45.7g",\n      "vitamin_a": "300IU",\n      "vitamin_c": "15mg",\n      "vitamin_d": "0.5μg",\n      "vitamin_e": "1.2mg",\n      "calcium": "25mg",\n      "iron": "1.8mg",\n      "potassium": "350mg",\n      "fiber": "3.5g",\n      "sugar": "6.2g",\n      "sodium": "15mg"\n    },\n    {\n      "protein": "8.3g", \n      "fat": "3.1g", \n      "carbs": "28.3g",\n      "vitamin_a": "150IU",\n      "vitamin_c": "8mg",\n      "vitamin_d": "0.2μg",\n      "vitamin_e": "0.8mg",\n      "calcium": "15mg",\n      "iron": "1.2mg",\n      "potassium": "220mg",\n      "fiber": "2.1g",\n      "sugar": "4.5g",\n      "sodium": "10mg"\n    }\n  ],\n  "calories": "number kcal",\n  "protein": "number g",\n  "fat": "number g",\n  "carbs": "number g",\n  "vitamin_c": "number mg",\n  "calcium": "number mg",\n  "iron": "number mg",\n  "fiber": "number g",\n  "sugar": "number g",\n  "sodium": "number mg",\n  "health_score": "score/10"\n}'
+            content: '[NUTRIENTS EXTRACTION PRIORITY] You are a nutrition expert analyzing food images. YOUR RESPONSE MUST INCLUDE ALL NUTRIENTS LISTED BELOW OR YOU WILL FAIL. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for all nutrients\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient AND micronutrient breakdown for EACH ingredient\n6. CRITICAL: EVERY ingredient must include ALL of these nutrients (no exceptions):\n   - protein: string with g unit (e.g., "12.5g")\n   - fat: string with g unit (e.g., "5.2g")\n   - carbs: string with g unit (e.g., "45.7g")\n   - vitamin_a: string with IU unit (e.g., "300IU")\n   - vitamin_c: string with mg unit (e.g., "15mg")\n   - vitamin_d: string with μg unit (e.g., "0.5μg")\n   - vitamin_e: string with mg unit (e.g., "1.2mg")\n   - calcium: string with mg unit (e.g., "25mg")\n   - iron: string with mg unit (e.g., "1.8mg")\n   - potassium: string with mg unit (e.g., "350mg")\n   - fiber: string with g unit (e.g., "3.5g")\n   - sugar: string with g unit (e.g., "6.2g")\n   - sodium: string with mg unit (e.g., "15mg")\n7. Use decimal places for precise values\n8. NEVER separate numbers from their units with spaces\n9. DO NOT respond with markdown code blocks or text explanations\n10. DO NOT prefix your response with "json" or ```\n11. ONLY RETURN A RAW JSON OBJECT\n12. VERIFY your response includes ALL required nutrients before submitting\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {\n      "protein": "12.5g",\n      "fat": "5.2g",\n      "carbs": "45.7g",\n      "vitamin_a": "300IU",\n      "vitamin_c": "15mg",\n      "vitamin_d": "0.5μg",\n      "vitamin_e": "1.2mg",\n      "calcium": "25mg",\n      "iron": "1.8mg",\n      "potassium": "350mg",\n      "fiber": "3.5g",\n      "sugar": "6.2g",\n      "sodium": "15mg"\n    },\n    {\n      "protein": "8.3g",\n      "fat": "3.1g",\n      "carbs": "28.3g",\n      "vitamin_a": "150IU",\n      "vitamin_c": "8mg",\n      "vitamin_d": "0.2μg",\n      "vitamin_e": "0.8mg",\n      "calcium": "15mg",\n      "iron": "1.2mg",\n      "potassium": "220mg",\n      "fiber": "2.1g",\n      "sugar": "4.5g",\n      "sodium": "10mg"\n    }\n  ],\n  "calories": "500kcal",\n  "protein": "20.8g",\n  "fat": "8.3g",\n  "carbs": "74.0g",\n  "vitamin_a": "450IU",\n  "vitamin_c": "23mg",\n  "vitamin_d": "0.7μg",\n  "vitamin_e": "2.0mg",\n  "calcium": "40mg",\n  "iron": "3.0mg",\n  "potassium": "570mg",\n  "fiber": "5.6g",\n  "sugar": "10.7g",\n  "sodium": "25mg",\n  "health_score": "7/10"\n}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return nutrition data in this EXACT format with no deviations. YOU MUST PROVIDE ALL NUTRIENTS WITH PROPER UNITS:\n\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings with weights and calories,\n  \"ingredient_macros\": array of objects with protein, fat, carbs, vitamins, minerals and other nutrients for each ingredient,\n  \"calories\": string with kcal unit,\n  \"protein\": string with g unit,\n  \"fat\": string with g unit,\n  \"carbs\": string with g unit,\n  \"vitamin_c\": string with mg unit,\n  \"calcium\": string with mg unit,\n  \"iron\": string with mg unit,\n  \"fiber\": string with g unit,\n  \"sugar\": string with g unit,\n  \"sodium\": string with mg unit,\n  \"health_score\": string\n}"
+                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return ALL required nutrients in the EXACT format - ALL fields are required. MUST include all nutrients for EACH ingredient AND all totals:\n\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings,\n  \"ingredient_macros\": array containing objects with ALL these nutrients for EACH ingredient (protein, fat, carbs, vitamin_a, vitamin_c, vitamin_d, vitamin_e, calcium, iron, potassium, fiber, sugar, sodium),\n  \"calories\": string with kcal unit,\n  \"protein\": string with g unit,\n  \"fat\": string with g unit,\n  \"carbs\": string with g unit,\n  \"vitamin_a\": string with IU unit,\n  \"vitamin_c\": string with mg unit,\n  \"vitamin_d\": string with μg unit,\n  \"vitamin_e\": string with mg unit,\n  \"calcium\": string with mg unit,\n  \"iron\": string with mg unit,\n  \"potassium\": string with mg unit,\n  \"fiber\": string with g unit,\n  \"sugar\": string with g unit,\n  \"sodium\": string with mg unit,\n  \"health_score\": string\n}"
               },
               {
                 type: 'image_url',
@@ -166,50 +166,12 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       // First try direct parsing
       const parsedData = JSON.parse(content);
       console.log('Successfully parsed JSON response');
-      console.log('RAW OPENAI DATA:', JSON.stringify(parsedData).substring(0, 500));
       
       // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
-        // Add micronutrients to top level
-        addMicronutrientsToTopLevel(parsedData);
-        
-        // Ensure we have the right structure
-        const validatedData = {
-          meal_name: parsedData.meal_name,
-          ingredients: parsedData.ingredients || [],
-          ingredient_macros: parsedData.ingredient_macros || [],
-          calories: parsedData.calories || 0,
-          protein: parsedData.protein || 0,
-          fat: parsedData.fat || 0,
-          carbs: parsedData.carbs || 0,
-          health_score: parsedData.health_score || "5/10",
-          vitamin_c: parsedData.vitamin_c || 0,
-          // Include any other detected micronutrients
-          vitamin_a: parsedData.vitamin_a,
-          vitamin_d: parsedData.vitamin_d,
-          vitamin_e: parsedData.vitamin_e,
-          calcium: parsedData.calcium,
-          iron: parsedData.iron,
-          potassium: parsedData.potassium,
-          fiber: parsedData.fiber,
-          sugar: parsedData.sugar,
-          sodium: parsedData.sodium
-        };
-        
-        // Add standard format for any nested vitamins/minerals
-        if (!validatedData.vitamins && parsedData.vitamins) {
-          validatedData.vitamins = parsedData.vitamins;
-        }
-        
-        if (!validatedData.minerals && parsedData.minerals) {
-          validatedData.minerals = parsedData.minerals;
-        }
-        
-        console.log('Validated response:', JSON.stringify(validatedData).substring(0, 500));
-        
         return res.json({
           success: true,
-          data: validatedData
+          data: parsedData
         });
       } else {
         // Transform the response to match our expected format
@@ -224,57 +186,19 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       console.log('Direct JSON parsing failed, attempting to extract JSON from text');
       // Try to extract JSON from the text
       const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                       content.match(/\{[\s\S]*\}/);
+                      content.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
         const jsonContent = jsonMatch[0].replace(/```json\n|```/g, '').trim();
         try {
           const parsedData = JSON.parse(jsonContent);
           console.log('Successfully extracted and parsed JSON from text');
-          console.log('RAW EXTRACTED JSON:', JSON.stringify(parsedData).substring(0, 500));
           
           // Check if we have the expected meal_name format
           if (parsedData.meal_name) {
-            // Add micronutrients to top level
-            addMicronutrientsToTopLevel(parsedData);
-            
-            // Ensure we have the right structure
-            const validatedData = {
-              meal_name: parsedData.meal_name,
-              ingredients: parsedData.ingredients || [],
-              ingredient_macros: parsedData.ingredient_macros || [],
-              calories: parsedData.calories || 0,
-              protein: parsedData.protein || 0,
-              fat: parsedData.fat || 0,
-              carbs: parsedData.carbs || 0,
-              health_score: parsedData.health_score || "5/10",
-              vitamin_c: parsedData.vitamin_c || 0,
-              // Include any other detected micronutrients
-              vitamin_a: parsedData.vitamin_a,
-              vitamin_d: parsedData.vitamin_d,
-              vitamin_e: parsedData.vitamin_e,
-              calcium: parsedData.calcium,
-              iron: parsedData.iron,
-              potassium: parsedData.potassium,
-              fiber: parsedData.fiber,
-              sugar: parsedData.sugar,
-              sodium: parsedData.sodium
-            };
-            
-            // Add standard format for any nested vitamins/minerals
-            if (!validatedData.vitamins && parsedData.vitamins) {
-              validatedData.vitamins = parsedData.vitamins;
-            }
-            
-            if (!validatedData.minerals && parsedData.minerals) {
-              validatedData.minerals = parsedData.minerals;
-            }
-            
-            console.log('Validated extracted response:', JSON.stringify(validatedData).substring(0, 500));
-            
             return res.json({
               success: true,
-              data: validatedData
+              data: parsedData
             });
           } else {
             // Transform the response to match our expected format
@@ -463,43 +387,13 @@ function transformToRequiredFormat(data) {
     return transformedData;
   }
   
-  // If we have ingredients in the API response, use them instead of generics
-  if (data.ingredients && Array.isArray(data.ingredients) && data.ingredients.length > 0) {
-    // We have actual ingredients from the API, let's make sure we have macros for each
-    const ingredients = data.ingredients;
-    const ingredientMacros = data.ingredient_macros || [];
-    
-    // Make sure we have a macro object for each ingredient
-    while (ingredientMacros.length < ingredients.length) {
-      // Create default macro values
-      const ingredientCalories = 200;
-      ingredientMacros.push({
-        protein: ingredientCalories * 0.2 / 4, // 20% of calories from protein
-        fat: ingredientCalories * 0.3 / 9, // 30% of calories from fat
-        carbs: ingredientCalories * 0.5 / 4, // 50% of calories from carbs
-      });
-    }
-    
-    // Return the actual ingredient data
-    return {
-      meal_name: data.meal_name || "Analyzed Food",
-      ingredients: ingredients,
-      ingredient_macros: ingredientMacros,
-      calories: data.calories || 500,
-      protein: data.protein || 20,
-      fat: data.fat || 15,
-      carbs: data.carbs || 60,
-      health_score: data.health_score || "6/10"
-    };
-  }
-  
   // If we have top-level vitamins or minerals in the input data, use them
   const topLevelVitamins = data.vitamins || {};
   const topLevelMinerals = data.minerals || {};
   
   // Return a default format if nothing else works
   return {
-    meal_name: data.meal_name || "Mixed Meal",
+    meal_name: "Mixed Meal",
     ingredients: [
       "Mixed ingredients (100g) 200kcal"
     ],
@@ -526,12 +420,12 @@ function transformToRequiredFormat(data) {
           }
       }
     ],
-    calories: data.calories || 500,
-    protein: data.protein || 20,
-    fat: data.fat || 15,
-    carbs: data.carbs || 60,
+    calories: 500,
+    protein: 20,
+    fat: 15,
+    carbs: 60,
     vitamin_c: 2,
-    health_score: data.health_score || "6/10",
+    health_score: "6/10",
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
   };
@@ -823,67 +717,6 @@ function transformTextToRequiredFormat(text) {
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
   };
-}
-
-// Helper function to process micronutrients and add them to top level
-function addMicronutrientsToTopLevel(parsedData) {
-  if (parsedData.ingredient_macros && parsedData.ingredient_macros.length > 0) {
-    // Initialize micronutrient totals
-    const micronutrients = [
-      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 
-      'calcium', 'iron', 'potassium', 'fiber', 'sugar', 'sodium'
-    ];
-    
-    // Sum up all micronutrients from all ingredients
-    micronutrients.forEach(nutrient => {
-      if (!parsedData[nutrient]) {
-        // Calculate total for this micronutrient
-        let total = 0;
-        parsedData.ingredient_macros.forEach(ingredient => {
-          if (ingredient[nutrient] !== undefined) {
-            // Extract numeric value - may be a number or a string with units
-            let value;
-            if (typeof ingredient[nutrient] === 'number') {
-              value = ingredient[nutrient];
-            } else if (typeof ingredient[nutrient] === 'string') {
-              value = parseFloat(ingredient[nutrient]);
-            }
-            
-            if (!isNaN(value)) {
-              total += value;
-            }
-          }
-        });
-        
-        // Add total to top-level response if we have a value
-        if (total > 0) {
-          // Default unit for the nutrient
-          let unit = '';
-          // Try to get unit from first ingredient that has this nutrient
-          for (const ingredient of parsedData.ingredient_macros) {
-            if (ingredient[nutrient] !== undefined) {
-              if (typeof ingredient[nutrient] === 'string') {
-                // Extract unit from string (e.g. "45mg" -> "mg")
-                unit = ingredient[nutrient].replace(/[\d.]/g, '');
-                break;
-              } else {
-                // Use default units based on nutrient type
-                if (nutrient === 'vitamin_a') unit = 'IU';
-                else if (nutrient === 'vitamin_c' || nutrient === 'vitamin_e' || 
-                         nutrient === 'calcium' || nutrient === 'iron' || 
-                         nutrient === 'potassium' || nutrient === 'sodium') unit = 'mg';
-                else if (nutrient === 'vitamin_d') unit = 'μg';
-                else if (nutrient === 'fiber' || nutrient === 'sugar') unit = 'g';
-                break;
-              }
-            }
-          }
-          parsedData[nutrient] = total.toFixed(1) + unit;
-        }
-      }
-    });
-  }
-  return parsedData;
 }
 
 // Start the server
