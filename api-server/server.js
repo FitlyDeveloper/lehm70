@@ -746,13 +746,19 @@ function addMicronutrientsToTopLevel(data) {
   }
   
   try {
-    console.log('RAW OPENAI DATA:', JSON.stringify(data).substring(0, 1000) + (JSON.stringify(data).length > 1000 ? '...' : ''));
+    console.log('Processing ALL nutrients from OpenAI response...');
     
     // Extract and consolidate nutrients from all ingredients
     const allNutrients = {};
+    // Include ALL nutrients that can be present in the API response
     const nutrientsToExtract = [
-      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e',
-      'calcium', 'iron', 'potassium', 'fiber', 'sugar', 'sodium'
+      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
+      'vitamin_b1', 'vitamin_b2', 'vitamin_b3', 'vitamin_b5', 'vitamin_b6',
+      'vitamin_b7', 'vitamin_b9', 'vitamin_b12',
+      'calcium', 'chloride', 'chromium', 'copper', 'fluoride', 'iodine',
+      'iron', 'magnesium', 'manganese', 'molybdenum', 'phosphorus',
+      'potassium', 'selenium', 'sodium', 'zinc',
+      'fiber', 'cholesterol', 'sugar', 'saturated_fats', 'omega_3', 'omega_6'
     ];
     
     // Process each ingredient
@@ -767,15 +773,27 @@ function addMicronutrientsToTopLevel(data) {
           } else if (typeof value === 'number') {
             // Numeric value - convert to string with appropriate unit
             let unit = '';
-            if (nutrient === 'protein' || nutrient === 'fat' || nutrient === 'carbs' || nutrient === 'fiber' || nutrient === 'sugar') {
+            if (nutrient === 'protein' || nutrient === 'fat' || nutrient === 'carbs' || 
+                nutrient === 'fiber' || nutrient === 'sugar' || nutrient === 'saturated_fats' ||
+                nutrient === 'omega_6') {
               unit = 'g';
-            } else if (nutrient === 'vitamin_a') {
-              unit = 'IU';
-            } else if (nutrient === 'vitamin_c' || nutrient === 'calcium' || nutrient === 'iron' || nutrient === 'potassium' || nutrient === 'sodium') {
-              unit = 'mg';
-            } else if (nutrient === 'vitamin_d') {
-              unit = 'μg';
-            } else if (nutrient === 'vitamin_e') {
+            } else if (nutrient === 'vitamin_a' || nutrient === 'vitamin_d' || 
+                       nutrient === 'vitamin_b7' || nutrient === 'vitamin_b9' || 
+                       nutrient === 'vitamin_b12' || nutrient === 'vitamin_k' || 
+                       nutrient === 'chromium' || nutrient === 'copper' || 
+                       nutrient === 'iodine' || nutrient === 'molybdenum' || 
+                       nutrient === 'selenium') {
+              unit = 'mcg';
+            } else if (nutrient === 'cholesterol' || nutrient === 'omega_3' ||
+                       nutrient === 'vitamin_c' || nutrient === 'vitamin_e' || 
+                       nutrient === 'vitamin_b1' || nutrient === 'vitamin_b2' || 
+                       nutrient === 'vitamin_b3' || nutrient === 'vitamin_b5' || 
+                       nutrient === 'vitamin_b6' || nutrient === 'calcium' || 
+                       nutrient === 'chloride' || nutrient === 'fluoride' || 
+                       nutrient === 'iron' || nutrient === 'magnesium' || 
+                       nutrient === 'manganese' || nutrient === 'phosphorus' || 
+                       nutrient === 'potassium' || nutrient === 'sodium' || 
+                       nutrient === 'zinc') {
               unit = 'mg';
             }
             allNutrients[nutrient] = value + unit;
@@ -791,13 +809,13 @@ function addMicronutrientsToTopLevel(data) {
       }
     });
     
-    console.log('===== INGREDIENT-SPECIFIC NUTRIENTS =====');
-    console.log('===== PROCESSED NUTRIENTS FOR NUTRITION TRACKING =====');
-    console.log(`  protein: ${data.protein || 0} g`);
-    console.log(`  fat: ${data.fat || 0} g`);
-    console.log(`  carbs: ${data.carbs || 0} g`);
-    console.log(`  vitamin_c: ${data.vitamin_c ? data.vitamin_c.toString().replace(/[^\d\.]/g, '') : 0} mg`);
-    console.log('=======================================================');
+    // Log each nutrient that was processed for verification
+    console.log('Nutrients processed and added to response:');
+    Object.entries(allNutrients).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}`);
+    });
+    
+    console.log('All nutrients processed for Nutrition.dart display');
     
     return data;
   } catch (error) {

@@ -243,35 +243,6 @@ class _SnapFoodState extends State<SnapFood> {
             _analysisResult = response;
           });
 
-          // DEBUG: Print the entire response structure to see what's available
-          print("\n===== FULL API RESPONSE STRUCTURE =====");
-          print("Keys in response: ${response.keys.toList()}");
-          if (response.containsKey('ingredient_macros')) {
-            print(
-                "Ingredient macros found: ${response['ingredient_macros'].length} items");
-            for (var i = 0; i < response['ingredient_macros'].length; i++) {
-              var macro = response['ingredient_macros'][i];
-              print("Ingredient ${i + 1}: ${macro.keys.toList()}");
-
-              // Check if this ingredient has vitamins/minerals directly
-              if (macro.containsKey('vitamins')) {
-                print("  - Has direct vitamins: ${macro['vitamins']}");
-              }
-              if (macro.containsKey('minerals')) {
-                print("  - Has direct minerals: ${macro['minerals']}");
-              }
-            }
-          }
-
-          // Vitamins/minerals at top level
-          if (response.containsKey('vitamins')) {
-            print("Top-level vitamins found: ${response['vitamins']}");
-          }
-          if (response.containsKey('minerals')) {
-            print("Top-level minerals found: ${response['minerals']}");
-          }
-          print("======================================\n");
-
           // Extract the food name from the response for scanId generation
           String foodName = '';
           if (response.containsKey('meal_name')) {
@@ -599,9 +570,6 @@ class _SnapFoodState extends State<SnapFood> {
         List<dynamic> ingredientMacros =
             analysisData['ingredient_macros'] ?? [];
 
-        // Log header for ingredient-specific nutrients
-        print('\n===== INGREDIENT-SPECIFIC NUTRIENTS =====');
-
         // Process each ingredient with macros if available
         for (int i = 0; i < ingredients.length; i++) {
           String name = ingredients[i].toString();
@@ -800,20 +768,18 @@ class _SnapFoodState extends State<SnapFood> {
           });
         }
 
-        // Log the processed nutrients for debugging
-        print('\n===== PROCESSED NUTRIENTS FOR NUTRITION TRACKING =====');
-        additionalNutrients.forEach((key, value) {
-          print('  $key: $value');
-        });
-        print('=======================================================\n');
+        // Process any additional nutrients that might be in flat format
+        // Look directly in the root object for common nutrient names
+        print('Looking for additional nutrients in root level of API response');
+        processRootLevelNutrients(analysisData, additionalNutrients);
 
         // Save food card data and navigate to the FoodCardOpen screen
         _saveFoodCardAndNavigate(
           mealName,
-          calories.toString(),
-          protein.toString(),
-          fat.toString(),
-          carbs.toString(),
+          '${caloriesData['value']} ${caloriesData['unit'] ?? 'kcal'}',
+          '${proteinData['value']} ${nutrientUnits['protein']}',
+          '${fatData['value']} ${nutrientUnits['fat']}',
+          '${carbsData['value']} ${nutrientUnits['carbs']}',
           ingredientsList,
           healthScore,
           scanId,
@@ -851,15 +817,37 @@ class _SnapFoodState extends State<SnapFood> {
           numericValue = _extractNumericValueFromString(nutrientValue);
         } else if (nutrientValue is num) {
           numericValue = nutrientValue.toDouble();
+        } else if (nutrientValue is Map &&
+            nutrientValue.containsKey('amount')) {
+          // Handle object format like {"amount": 150, "unit": "mcg"}
+          var amount = nutrientValue['amount'];
+          if (amount is num) {
+            numericValue = amount.toDouble();
+          } else if (amount is String) {
+            numericValue = _extractNumericValueFromString(amount);
+          }
+
+          // Update unit if provided
+          if (nutrientValue.containsKey('unit') &&
+              nutrientValue['unit'] is String) {
+            unit = nutrientValue['unit'];
+          }
         }
 
-        // Only include nutrients with values >= 0.4
-        if (numericValue >= 0.4) {
-          // Store the nutrient with its proper unit
-          targetIngredientData['${categoryKey}_${nutrientKey}'] =
-              '$numericValue $unit';
+        // Store all nutrients, even those with low values for completeness
+        // Add with both full key and specific key for compatibility
+        targetIngredientData['${categoryKey}_${nutrientKey}'] =
+            '$numericValue $unit';
+        targetIngredientData[nutrientKey] = '$numericValue $unit';
+
+        // Log values for debugging
+        if (numericValue >= 0.1) {
+          print('Processed $categoryKey.$nutrientKey = $numericValue $unit');
         }
       });
+
+      // Also add the entire category data for more direct access
+      targetIngredientData[categoryKey] = nutrients;
     }
   }
 
@@ -906,15 +894,72 @@ class _SnapFoodState extends State<SnapFood> {
     }
   }
 
-  // Helper method to extract numeric value from string with unit
+  // Enhanced helper method to extract numeric value from string with unit
   double _extractNumericValueFromString(String value) {
-    // Extract just the numeric portion, handles formats like "150 mcg", "2.5 mg", etc.
-    final numericRegex = RegExp(r'(\d+\.?\d*)');
-    final match = numericRegex.firstMatch(value);
-    if (match != null && match.group(1) != null) {
-      return double.tryParse(match.group(1)!) ?? 0.0;
+    try {
+      // Handle null value
+      if (value == null) return 0.0;
+
+      // Try direct parsing first (handles clean numbers)
+      double? directParse = double.tryParse(value);
+      if (directParse != null) return directParse;
+
+      // Convert to string and trim
+      String strValue = value.toString().trim();
+
+      // If empty, return 0
+      if (strValue.isEmpty) return 0.0;
+
+      // Handle ranges like "10-15g" - take the average
+      if (strValue.contains('-')) {
+        List<String> parts = strValue.split('-');
+        if (parts.length == 2) {
+          // Extract numeric values from both parts
+          RegExp numericRegex = RegExp(r'(\d+\.?\d*)');
+
+          // First part
+          Match? firstMatch = numericRegex.firstMatch(parts[0]);
+          double first = 0.0;
+          if (firstMatch != null && firstMatch.group(1) != null) {
+            first = double.parse(firstMatch.group(1)!);
+          }
+
+          // Second part
+          Match? secondMatch = numericRegex.firstMatch(parts[1]);
+          double second = 0.0;
+          if (secondMatch != null && secondMatch.group(1) != null) {
+            second = double.parse(secondMatch.group(1)!);
+          }
+
+          return (first + second) / 2.0;
+        }
+      }
+
+      // Handle fraction strings like "1/2"
+      if (strValue.contains('/')) {
+        List<String> fractionParts = strValue.split('/');
+        if (fractionParts.length == 2) {
+          double? numerator = double.tryParse(fractionParts[0].trim());
+          double? denominator = double.tryParse(fractionParts[1].trim());
+          if (numerator != null && denominator != null && denominator != 0) {
+            return numerator / denominator;
+          }
+        }
+      }
+
+      // Otherwise, extract numeric part from strings like "24g" or "45 mg"
+      RegExp numericRegex = RegExp(r'(\d+\.?\d*)');
+      Match? numericMatch = numericRegex.firstMatch(strValue);
+      if (numericMatch != null && numericMatch.group(1) != null) {
+        return double.parse(numericMatch.group(1)!);
+      }
+
+      // If everything fails, return 0
+      return 0.0;
+    } catch (e) {
+      print('Error extracting numeric value from "$value": $e');
+      return 0.0;
     }
-    return 0.0;
   }
 
   // Helper method to save and navigate to FoodCardOpen
@@ -929,6 +974,77 @@ class _SnapFoodState extends State<SnapFood> {
     String scanId,
     Map<String, dynamic> additionalNutrients,
   ) {
+    // Clean and normalize the additionalNutrients to ensure consistent formats
+    Map<String, dynamic> normalizedNutrients = {};
+    print(
+        'Normalizing ${additionalNutrients.length} additionalNutrients for storage and display');
+
+    additionalNutrients.forEach((key, value) {
+      // Normalize key: lowercase, replace spaces with underscores
+      String normalizedKey = key.toLowerCase().replaceAll(' ', '_');
+
+      if (value is num) {
+        // Numeric values can be used as-is
+        normalizedNutrients[normalizedKey] = value;
+      } else if (value is String) {
+        // For strings, try to extract numeric values if they contain them
+        double? directValue = double.tryParse(value);
+        if (directValue != null) {
+          // If it's a pure number as string, convert to numeric
+          normalizedNutrients[normalizedKey] = directValue;
+        } else {
+          // Extract numeric part if it contains one
+          double numericValue = _extractNumericValueFromString(value);
+          if (numericValue > 0) {
+            // Try to preserve the unit
+            String unit = '';
+            RegExp unitRegex = RegExp(r'[a-zA-Z]+');
+            Match? unitMatch = unitRegex
+                .firstMatch(value.replaceAll(RegExp(r'\d+\.?\d*'), ''));
+            if (unitMatch != null) {
+              unit = unitMatch.group(0)!.trim();
+            }
+
+            // Store with formatted value and unit
+            if (unit.isNotEmpty) {
+              normalizedNutrients[normalizedKey] = '$numericValue $unit';
+            } else {
+              normalizedNutrients[normalizedKey] = numericValue;
+            }
+          } else {
+            // Keep as-is if we couldn't extract a numeric value
+            normalizedNutrients[normalizedKey] = value;
+          }
+        }
+      } else if (value is Map) {
+        // Handle nested structure like {"amount": 10, "unit": "mg"}
+        if (value.containsKey('amount')) {
+          var amount = value['amount'];
+          String? unit = value['unit']?.toString();
+
+          if (amount is num) {
+            if (unit != null && unit.isNotEmpty) {
+              normalizedNutrients[normalizedKey] = '$amount $unit';
+            } else {
+              normalizedNutrients[normalizedKey] = amount;
+            }
+          } else if (amount is String) {
+            double numericValue = _extractNumericValueFromString(amount);
+            if (unit != null && unit.isNotEmpty) {
+              normalizedNutrients[normalizedKey] = '$numericValue $unit';
+            } else {
+              normalizedNutrients[normalizedKey] = numericValue;
+            }
+          }
+        } else {
+          // For other map structures, just stringify
+          normalizedNutrients[normalizedKey] = value.toString();
+        }
+      }
+    });
+
+    print('Normalized nutrients: ${normalizedNutrients.length} entries');
+
     // Compress and save the current image for display
     Future<String?> base64Future;
     if (_webImageBytes != null) {
@@ -961,7 +1077,7 @@ class _SnapFoodState extends State<SnapFood> {
               healthScore: healthScore,
               imageBase64: base64Image,
               ingredients: ingredientsList,
-              additionalNutrients: additionalNutrients,
+              additionalNutrients: normalizedNutrients,
               scanId: scanId,
             ),
           ),
@@ -1812,188 +1928,86 @@ class _SnapFoodState extends State<SnapFood> {
     return thresholds;
   }
 
-  // Helper method to extract additional nutrients from the analysis data
-  Map<String, dynamic> _extractAdditionalNutrients(
-      Map<String, dynamic> analysisData) {
-    // Create with initial capacity to avoid resizing
-    Map<String, dynamic> nutrients = {};
+  // Helper method to process root level nutrients
+  void processRootLevelNutrients(
+      Map<String, dynamic> source, Map<String, dynamic> target) {
+    // Common nutrient keys to look for
+    Map<String, String> commonNutrients = {
+      'fiber': 'g',
+      'dietary_fiber': 'g',
+      'cholesterol': 'mg',
+      'sugar': 'g',
+      'sugars': 'g',
+      'saturated_fat': 'g',
+      'saturated_fats': 'g',
+      'omega_3': 'mg',
+      'omega3': 'mg',
+      'omega_6': 'g',
+      'omega6': 'g',
+      'calcium': 'mg',
+      'iron': 'mg',
+      'sodium': 'mg',
+      'potassium': 'mg',
+      'magnesium': 'mg',
+      'zinc': 'mg',
+      'selenium': 'mcg',
+      'copper': 'mcg',
+      'manganese': 'mg',
+      'phosphorus': 'mg',
+      'iodine': 'mcg',
+      'chromium': 'mcg',
+      'molybdenum': 'mcg',
+      'vitamin_a': 'mcg',
+      'vitamin_c': 'mg',
+      'vitamin_d': 'mcg',
+      'vitamin_e': 'mg',
+      'vitamin_k': 'mcg',
+      'vitamin_b1': 'mg',
+      'thiamine': 'mg',
+      'riboflavin': 'mg',
+      'niacin': 'mg',
+      'vitamin_b5': 'mg',
+      'pantothenic_acid': 'mg',
+      'vitamin_b6': 'mg',
+      'pyridoxine': 'mg',
+      'vitamin_b7': 'mcg',
+      'biotin': 'mcg',
+      'vitamin_b9': 'mcg',
+      'folate': 'mcg',
+      'vitamin_b12': 'mcg',
+      'cobalamin': 'mcg',
+    };
 
-    // Extract vitamins if available - direct extraction approach
-    if (analysisData.containsKey('vitamins') &&
-        analysisData['vitamins'] is Map) {
-      final Map<String, dynamic> vitamins =
-          Map<String, dynamic>.from(analysisData['vitamins'] as Map);
-      for (final entry in vitamins.entries) {
-        final key = entry.key;
-        final value = entry.value;
+    // Process each key in source that matches common nutrients
+    commonNutrients.forEach((nutrientKey, unit) {
+      if (source.containsKey(nutrientKey)) {
+        var value = source[nutrientKey];
+        double numericValue = 0.0;
 
-        // Normalize key format
-        String normalizedKey = key.toLowerCase();
+        if (value is num) {
+          numericValue = value.toDouble();
+        } else if (value is String) {
+          numericValue = _extractNumericValueFromString(value);
+        } else if (value is Map && value.containsKey('amount')) {
+          var amount = value['amount'];
+          if (amount is num) {
+            numericValue = amount.toDouble();
+          } else if (amount is String) {
+            numericValue = _extractNumericValueFromString(amount);
+          }
 
-        // Quick prefix check for vitamins
-        if (normalizedKey.length <= 3 &&
-            (normalizedKey == 'a' ||
-                normalizedKey == 'c' ||
-                normalizedKey == 'd' ||
-                normalizedKey == 'e' ||
-                normalizedKey == 'k' ||
-                normalizedKey.startsWith('b'))) {
-          normalizedKey = 'vitamin_$normalizedKey';
-        }
-
-        // Simple space replacement
-        if (normalizedKey.contains(' ')) {
-          normalizedKey = normalizedKey.replaceAll(' ', '_');
-        }
-
-        nutrients[normalizedKey] = value.toString();
-      }
-    }
-
-    // Direct extraction of minerals
-    if (analysisData.containsKey('minerals') &&
-        analysisData['minerals'] is Map) {
-      final Map<String, dynamic> minerals =
-          Map<String, dynamic>.from(analysisData['minerals'] as Map);
-      minerals.forEach(
-          (key, value) => nutrients[key.toLowerCase()] = value.toString());
-    }
-
-    // Direct extraction of other nutrients
-    if (analysisData.containsKey('other_nutrients') &&
-        analysisData['other_nutrients'] is Map) {
-      final Map<String, dynamic> otherNutrients =
-          Map<String, dynamic>.from(analysisData['other_nutrients'] as Map);
-      otherNutrients.forEach(
-          (key, value) => nutrients[key.toLowerCase()] = value.toString());
-    }
-
-    // Extract from nutrition or nutrition_values
-    if (analysisData.containsKey('nutrition') &&
-        analysisData['nutrition'] is Map) {
-      _extractNestedNutrients(
-          Map<String, dynamic>.from(analysisData['nutrition']), nutrients);
-    } else if (analysisData.containsKey('nutrition_values') &&
-        analysisData['nutrition_values'] is Map) {
-      _extractNestedNutrients(
-          Map<String, dynamic>.from(analysisData['nutrition_values']),
-          nutrients);
-    }
-
-    // Check for ingredient_macros which might contain nutrient data
-    if (analysisData.containsKey('ingredient_macros') &&
-        analysisData['ingredient_macros'] is List) {
-      List<dynamic> ingredientMacros = analysisData['ingredient_macros'];
-
-      // For aggregate nutrients, we'll combine values from all ingredients
-      for (var macroData in ingredientMacros) {
-        if (macroData is Map) {
-          Map<String, dynamic> macros = Map<String, dynamic>.from(macroData);
-
-          // Check for nested nutrition data
-          if (macros.containsKey('nutrition') && macros['nutrition'] is Map) {
-            _extractNestedNutrients(
-                Map<String, dynamic>.from(macros['nutrition']), nutrients);
-          } else if (macros.containsKey('nutrition_values') &&
-              macros['nutrition_values'] is Map) {
-            _extractNestedNutrients(
-                Map<String, dynamic>.from(macros['nutrition_values']),
-                nutrients);
+          // Use provided unit if available
+          if (value.containsKey('unit') && value['unit'] is String) {
+            unit = value['unit'];
           }
         }
+
+        if (numericValue > 0) {
+          target[nutrientKey] = '$numericValue $unit';
+          print('Found root level $nutrientKey: $numericValue $unit');
+        }
       }
-    }
-
-    // Process common root level nutrients in a single pass
-    final commonNutrients = [
-      'fiber',
-      'cholesterol',
-      'sodium',
-      'sugar',
-      'saturated_fat',
-      'omega_3',
-      'omega_6',
-      'potassium',
-      'calcium',
-      'iron',
-      'vitamin_a',
-      'vitamin_c',
-      'vitamin_d',
-      'vitamin_e',
-      'vitamin_k',
-      'thiamin',
-      'riboflavin',
-      'niacin',
-      'folate',
-      'vitamin_b12'
-    ];
-
-    for (final nutrient in commonNutrients) {
-      if (analysisData.containsKey(nutrient)) {
-        nutrients[nutrient] = analysisData[nutrient].toString();
-      }
-    }
-
-    return nutrients;
-  }
-
-  // Helper method to extract nested nutrient data
-  void _extractNestedNutrients(
-      Map<String, dynamic> source, Map<String, dynamic> target) {
-    // Check for vitamins
-    if (source.containsKey('vitamins') && source['vitamins'] is Map) {
-      Map<String, dynamic> vitamins =
-          Map<String, dynamic>.from(source['vitamins']);
-      vitamins.forEach((key, value) {
-        String normalizedKey = key.toLowerCase();
-        // Format vitamin keys consistently
-        if (normalizedKey.length <= 3 &&
-            (normalizedKey == 'a' ||
-                normalizedKey == 'c' ||
-                normalizedKey == 'd' ||
-                normalizedKey == 'e' ||
-                normalizedKey == 'k' ||
-                normalizedKey.startsWith('b'))) {
-          normalizedKey = 'vitamin_$normalizedKey';
-        }
-
-        // Handle different value types
-        if (value is Map && value.containsKey('amount')) {
-          target[normalizedKey] = value['amount'].toString();
-        } else {
-          target[normalizedKey] = value.toString();
-        }
-      });
-    }
-
-    // Check for minerals
-    if (source.containsKey('minerals') && source['minerals'] is Map) {
-      Map<String, dynamic> minerals =
-          Map<String, dynamic>.from(source['minerals']);
-      minerals.forEach((key, value) {
-        String normalizedKey = key.toLowerCase();
-        // Handle different value types
-        if (value is Map && value.containsKey('amount')) {
-          target[normalizedKey] = value['amount'].toString();
-        } else {
-          target[normalizedKey] = value.toString();
-        }
-      });
-    }
-
-    // Check for other nutrients
-    if (source.containsKey('other') && source['other'] is Map) {
-      Map<String, dynamic> other = Map<String, dynamic>.from(source['other']);
-      other.forEach((key, value) {
-        String normalizedKey = key.toLowerCase();
-        // Handle different value types
-        if (value is Map && value.containsKey('amount')) {
-          target[normalizedKey] = value['amount'].toString();
-        } else {
-          target[normalizedKey] = value.toString();
-        }
-      });
-    }
+    });
 
     // Also check for flat nutrient values directly in the source
     source.forEach((key, value) {
@@ -2042,9 +2056,9 @@ class _SnapFoodState extends State<SnapFood> {
 
       // Otherwise, extract numeric part from strings like "24g" or "45 mg"
       RegExp numericRegex = RegExp(r'(\d+\.?\d*)');
-      var match = numericRegex.firstMatch(value);
-      if (match != null && match.group(1) != null) {
-        return double.tryParse(match.group(1)!) ?? 0.0;
+      Match? numericMatch = numericRegex.firstMatch(value);
+      if (numericMatch != null && numericMatch.group(1) != null) {
+        return double.parse(numericMatch.group(1)!) ?? 0.0;
       }
     } catch (e) {
       print('Error extracting decimal value from "$value": $e');

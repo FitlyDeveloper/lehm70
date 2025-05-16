@@ -739,7 +739,7 @@ function addMicronutrientsToTopLevel(data) {
   }
   
   try {
-    console.log('RAW OPENAI DATA:', JSON.stringify(data).substring(0, 1000) + (JSON.stringify(data).length > 1000 ? '...' : ''));
+    console.log('Processing ALL nutrients from OpenAI response...');
     
     // Extract and consolidate nutrients from all ingredients
     const allNutrients = {};
@@ -802,9 +802,13 @@ function addMicronutrientsToTopLevel(data) {
       }
     });
     
-    // Remove debugging statements that show only some nutrients
-    // Instead just log that the nutrients were processed
-    console.log('Processed all nutrients from API response - ready for Nutrition.dart display');
+    // Log each nutrient that was processed for verification
+    console.log('Nutrients processed and added to response:');
+    Object.entries(allNutrients).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}`);
+    });
+    
+    console.log('All nutrients processed for Nutrition.dart display');
     
     return data;
   } catch (error) {
