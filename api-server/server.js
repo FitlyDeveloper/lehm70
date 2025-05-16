@@ -33,7 +33,15 @@ const limiter = rateLimit({
 // Get allowed origins from environment or use default
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:3000'];
+  : [
+      'http://localhost:3000',
+      'https://snap-food.onrender.com',
+      'https://deepseek-uhrc.onrender.com',
+      'http://snap-food.onrender.com',
+      'http://deepseek-uhrc.onrender.com',
+      'https://your-new-frontend.com',
+      'http://your-other-origin.com'
+    ];
 
 // Configure CORS
 app.use(cors({
