@@ -166,15 +166,50 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
       // First try direct parsing
       const parsedData = JSON.parse(content);
       console.log('Successfully parsed JSON response');
+      console.log('RAW OPENAI DATA:', JSON.stringify(parsedData).substring(0, 500));
       
       // Check if we have the expected meal_name format
       if (parsedData.meal_name) {
         // Add micronutrients to top level
         addMicronutrientsToTopLevel(parsedData);
         
+        // Ensure we have the right structure
+        const validatedData = {
+          meal_name: parsedData.meal_name,
+          ingredients: parsedData.ingredients || [],
+          ingredient_macros: parsedData.ingredient_macros || [],
+          calories: parsedData.calories || 0,
+          protein: parsedData.protein || 0,
+          fat: parsedData.fat || 0,
+          carbs: parsedData.carbs || 0,
+          health_score: parsedData.health_score || "5/10",
+          vitamin_c: parsedData.vitamin_c || 0,
+          // Include any other detected micronutrients
+          vitamin_a: parsedData.vitamin_a,
+          vitamin_d: parsedData.vitamin_d,
+          vitamin_e: parsedData.vitamin_e,
+          calcium: parsedData.calcium,
+          iron: parsedData.iron,
+          potassium: parsedData.potassium,
+          fiber: parsedData.fiber,
+          sugar: parsedData.sugar,
+          sodium: parsedData.sodium
+        };
+        
+        // Add standard format for any nested vitamins/minerals
+        if (!validatedData.vitamins && parsedData.vitamins) {
+          validatedData.vitamins = parsedData.vitamins;
+        }
+        
+        if (!validatedData.minerals && parsedData.minerals) {
+          validatedData.minerals = parsedData.minerals;
+        }
+        
+        console.log('Validated response:', JSON.stringify(validatedData).substring(0, 500));
+        
         return res.json({
           success: true,
-          data: parsedData
+          data: validatedData
         });
       } else {
         // Transform the response to match our expected format
@@ -196,15 +231,50 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         try {
           const parsedData = JSON.parse(jsonContent);
           console.log('Successfully extracted and parsed JSON from text');
+          console.log('RAW EXTRACTED JSON:', JSON.stringify(parsedData).substring(0, 500));
           
           // Check if we have the expected meal_name format
           if (parsedData.meal_name) {
             // Add micronutrients to top level
             addMicronutrientsToTopLevel(parsedData);
             
+            // Ensure we have the right structure
+            const validatedData = {
+              meal_name: parsedData.meal_name,
+              ingredients: parsedData.ingredients || [],
+              ingredient_macros: parsedData.ingredient_macros || [],
+              calories: parsedData.calories || 0,
+              protein: parsedData.protein || 0,
+              fat: parsedData.fat || 0,
+              carbs: parsedData.carbs || 0,
+              health_score: parsedData.health_score || "5/10",
+              vitamin_c: parsedData.vitamin_c || 0,
+              // Include any other detected micronutrients
+              vitamin_a: parsedData.vitamin_a,
+              vitamin_d: parsedData.vitamin_d,
+              vitamin_e: parsedData.vitamin_e,
+              calcium: parsedData.calcium,
+              iron: parsedData.iron,
+              potassium: parsedData.potassium,
+              fiber: parsedData.fiber,
+              sugar: parsedData.sugar,
+              sodium: parsedData.sodium
+            };
+            
+            // Add standard format for any nested vitamins/minerals
+            if (!validatedData.vitamins && parsedData.vitamins) {
+              validatedData.vitamins = parsedData.vitamins;
+            }
+            
+            if (!validatedData.minerals && parsedData.minerals) {
+              validatedData.minerals = parsedData.minerals;
+            }
+            
+            console.log('Validated extracted response:', JSON.stringify(validatedData).substring(0, 500));
+            
             return res.json({
               success: true,
-              data: parsedData
+              data: validatedData
             });
           } else {
             // Transform the response to match our expected format
