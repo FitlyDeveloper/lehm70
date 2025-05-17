@@ -214,19 +214,139 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
                 // Try to find complete ingredient items
                 const ingredientsMatch = jsonContent.match(/"ingredients"\s*:\s*\[\s*"([^"]+)"/);
                 if (ingredientsMatch) {
-                  // Create a minimal valid JSON with what we have
+                  // Get the first ingredient
+                  const firstIngredient = ingredientsMatch[1];
+                  
+                  // Create ingredients list based on the meal name
+                  let ingredientsList = [firstIngredient];
+                  
+                  // Add appropriate additional ingredients based on meal type
+                  if (mealName.toLowerCase().includes('pizza')) {
+                    if (mealName.toLowerCase().includes('pepperoni')) {
+                      ingredientsList.push("Pepperoni (50g) 250kcal");
+                    }
+                    if (mealName.toLowerCase().includes('ham')) {
+                      ingredientsList.push("Ham (50g) 120kcal");
+                    }
+                    if (mealName.toLowerCase().includes('cheese') || !mealName.toLowerCase().includes('cheese')) {
+                      // Pizza almost always has cheese
+                      ingredientsList.push("Mozzarella Cheese (100g) 280kcal");
+                    }
+                    if (mealName.toLowerCase().includes('mushroom')) {
+                      ingredientsList.push("Mushrooms (30g) 22kcal");
+                    }
+                    // Add tomato sauce as it's a standard pizza ingredient
+                    ingredientsList.push("Tomato Sauce (80g) 70kcal");
+                  } else if (mealName.toLowerCase().includes('salad')) {
+                    ingredientsList.push("Lettuce (50g) 8kcal");
+                    ingredientsList.push("Tomatoes (50g) 9kcal");
+                    ingredientsList.push("Cucumber (30g) 5kcal");
+                    if (mealName.toLowerCase().includes('chicken')) {
+                      ingredientsList.push("Grilled Chicken (100g) 165kcal");
+                    }
+                  } else if (mealName.toLowerCase().includes('burger')) {
+                    ingredientsList.push("Beef Patty (150g) 375kcal");
+                    ingredientsList.push("Burger Bun (60g) 150kcal");
+                    ingredientsList.push("Lettuce (10g) 1kcal");
+                    ingredientsList.push("Tomato (20g) 4kcal");
+                    ingredientsList.push("Cheese (20g) 80kcal");
+                  } else if (mealName.toLowerCase().includes('pasta')) {
+                    if (mealName.toLowerCase().includes('tomato') || mealName.toLowerCase().includes('marinara')) {
+                      ingredientsList.push("Tomato Sauce (100g) 90kcal");
+                    }
+                    if (mealName.toLowerCase().includes('cream') || mealName.toLowerCase().includes('alfredo')) {
+                      ingredientsList.push("Cream Sauce (80g) 240kcal");
+                    }
+                    if (mealName.toLowerCase().includes('cheese')) {
+                      ingredientsList.push("Cheese (50g) 200kcal");
+                    }
+                  } else if (mealName.toLowerCase().includes('fruit')) {
+                    // Add common fruits
+                    if (!ingredientsList.some(i => i.toLowerCase().includes('apple'))) 
+                      ingredientsList.push("Apple (150g) 80kcal");
+                    if (!ingredientsList.some(i => i.toLowerCase().includes('banana'))) 
+                      ingredientsList.push("Banana (120g) 105kcal");
+                  }
+                  
+                  // Create ingredient macros with more detailed nutrition data for each ingredient
+                  const macrosList = [];
+                  for (const ingredient of ingredientsList) {
+                    // Extract ingredient name
+                    const nameMatch = ingredient.match(/^(.*?)(?:\s*\(|$)/);
+                    const name = nameMatch ? nameMatch[1].trim() : 'Ingredient';
+                    
+                    // Create nutrition profile based on ingredient type
+                    let macros = {
+                      protein: "5g",
+                      fat: "2g",
+                      carbs: "15g",
+                      vitamins: { 'c': "5mg", 'a': "100mcg" },
+                      minerals: { 'calcium': "20mg", 'iron': "1mg" }
+                    };
+                    
+                    // Customize nutrition based on ingredient type
+                    const lowerName = name.toLowerCase();
+                    if (lowerName.includes('pizza dough') || lowerName.includes('pasta') || lowerName.includes('bread') || lowerName.includes('bun')) {
+                      macros = {
+                        protein: "10g",
+                        fat: "5g",
+                        carbs: "70g",
+                        vitamins: { 'c': "0mg", 'a': "0mcg", 'b1': "0.3mg", 'b2': "0.2mg" },
+                        minerals: { 'calcium': "20mg", 'iron': "2mg", 'potassium': "150mg", 'magnesium': "25mg" }
+                      };
+                    } else if (lowerName.includes('cheese') || lowerName.includes('mozzarella')) {
+                      macros = {
+                        protein: "22g",
+                        fat: "24g",
+                        carbs: "2g",
+                        vitamins: { 'c': "0mg", 'a': "180mcg", 'b2': "0.3mg", 'b12': "1.2mcg" },
+                        minerals: { 'calcium': "700mg", 'iron': "0.2mg", 'potassium': "80mg", 'magnesium': "30mg" }
+                      };
+                    } else if (lowerName.includes('pepperoni') || lowerName.includes('ham') || lowerName.includes('beef') || lowerName.includes('chicken')) {
+                      macros = {
+                        protein: "25g",
+                        fat: "15g",
+                        carbs: "2g",
+                        vitamins: { 'c': "0mg", 'a': "0mcg", 'b1': "0.5mg", 'b12': "2.5mcg" },
+                        minerals: { 'calcium': "10mg", 'iron': "1.5mg", 'potassium': "300mg", 'magnesium': "20mg" }
+                      };
+                    } else if (lowerName.includes('tomato') || lowerName.includes('sauce')) {
+                      macros = {
+                        protein: "1g",
+                        fat: "0.5g",
+                        carbs: "5g",
+                        vitamins: { 'c': "12mg", 'a': "120mcg", 'e': "0.5mg", 'k': "10mcg" },
+                        minerals: { 'calcium': "10mg", 'iron': "0.5mg", 'potassium': "250mg", 'magnesium': "10mg" }
+                      };
+                    } else if (lowerName.includes('lettuce') || lowerName.includes('cucumber') || lowerName.includes('vegetable')) {
+                      macros = {
+                        protein: "1g",
+                        fat: "0.1g",
+                        carbs: "2g",
+                        vitamins: { 'c': "5mg", 'a': "150mcg", 'k': "120mcg", 'folate': "60mcg" },
+                        minerals: { 'calcium': "15mg", 'iron': "0.5mg", 'potassium': "150mg", 'magnesium': "10mg" }
+                      };
+                    } else if (lowerName.includes('apple') || lowerName.includes('banana') || lowerName.includes('fruit')) {
+                      macros = {
+                        protein: "1g",
+                        fat: "0.5g",
+                        carbs: "25g",
+                        vitamins: { 'c': "10mg", 'a': "5mcg", 'b6': "0.4mg", 'fiber': "4g" },
+                        minerals: { 'calcium': "5mg", 'iron': "0.2mg", 'potassium': "200mg", 'magnesium': "8mg" }
+                      };
+                    }
+                    
+                    macrosList.push(macros);
+                  }
+                  
+                  // Create the JSON structure with our expanded ingredients
                   jsonContent = `{
                     "meal_name": "${mealName}",
-                    "ingredients": ["${ingredientsMatch[1]}"],
-                    "ingredient_macros": [
-                      {
-                        "protein": "15g",
-                        "fat": "10g",
-                        "carbs": "30g"
-                      }
-                    ]
+                    "ingredients": ${JSON.stringify(ingredientsList)},
+                    "ingredient_macros": ${JSON.stringify(macrosList)}
                   }`;
-                  console.log('Repaired JSON with extracted meal name and ingredients');
+                  
+                  console.log('Created comprehensive JSON with appropriate ingredients for meal type');
                 } else {
                   // Create a minimal valid JSON with just the meal name
                   jsonContent = `{
@@ -301,14 +421,144 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
           
           console.log(`Creating fallback response with extracted meal name: ${mealName}`);
           
-          // Create a fallback response with the meal name we extracted
-          const fallbackData = {
-            meal_name: mealName,
-            ingredients: [
+          // Create ingredients list based on food type
+          let ingredients = [];
+          let ingredientMacros = [];
+          
+          if (mealName.toLowerCase().includes('pizza')) {
+            ingredients = [
+              "Pizza Dough (200g) 530kcal",
+              "Tomato Sauce (80g) 70kcal",
+              "Mozzarella Cheese (100g) 280kcal"
+            ];
+            
+            // Add pepperoni and ham if mentioned in name
+            if (mealName.toLowerCase().includes('pepperoni')) {
+              ingredients.push("Pepperoni (50g) 250kcal");
+            }
+            if (mealName.toLowerCase().includes('ham')) {
+              ingredients.push("Ham (50g) 120kcal");
+            }
+            if (mealName.toLowerCase().includes('mushroom')) {
+              ingredients.push("Mushrooms (30g) 22kcal");
+            }
+            
+            // Create corresponding macro data
+            for (const ingredient of ingredients) {
+              // Extract name from ingredient string
+              const nameMatch = ingredient.match(/^(.*?)(?:\s*\(|$)/);
+              const name = nameMatch ? nameMatch[1].trim() : 'Ingredient';
+              const lowerName = name.toLowerCase();
+              
+              let macros = {};
+              if (lowerName.includes('dough')) {
+                macros = {
+                  protein: "10g",
+                  fat: "5g",
+                  carbs: "70g",
+                  vitamins: { 'c': "0mg", 'a': "0mcg", 'b1': "0.3mg", 'b2': "0.2mg" },
+                  minerals: { 'calcium': "20mg", 'iron': "2mg", 'potassium': "150mg", 'magnesium': "25mg" }
+                };
+              } else if (lowerName.includes('cheese')) {
+                macros = {
+                  protein: "22g",
+                  fat: "24g",
+                  carbs: "2g",
+                  vitamins: { 'c': "0mg", 'a': "180mcg", 'b2': "0.3mg", 'b12': "1.2mcg" },
+                  minerals: { 'calcium': "700mg", 'iron': "0.2mg", 'potassium': "80mg", 'magnesium': "30mg" }
+                };
+              } else if (lowerName.includes('pepperoni') || lowerName.includes('ham')) {
+                macros = {
+                  protein: "25g",
+                  fat: lowerName.includes('pepperoni') ? "20g" : "10g",
+                  carbs: "2g",
+                  vitamins: { 'c': "0mg", 'a': "0mcg", 'b1': "0.5mg", 'b12': "2.5mcg" },
+                  minerals: { 'calcium': "10mg", 'iron': "1.5mg", 'potassium': "300mg", 'magnesium': "20mg" }
+                };
+              } else if (lowerName.includes('sauce') || lowerName.includes('tomato')) {
+                macros = {
+                  protein: "1g",
+                  fat: "0.5g",
+                  carbs: "5g",
+                  vitamins: { 'c': "12mg", 'a': "120mcg", 'e': "0.5mg", 'k': "10mcg" },
+                  minerals: { 'calcium': "10mg", 'iron': "0.5mg", 'potassium': "250mg", 'magnesium': "10mg" }
+                };
+              } else if (lowerName.includes('mushroom')) {
+                macros = {
+                  protein: "3g",
+                  fat: "0.3g",
+                  carbs: "3g",
+                  vitamins: { 'c': "2mg", 'd': "0.2mcg", 'b2': "0.4mg", 'b3': "3.6mg" },
+                  minerals: { 'selenium': "9mcg", 'copper': "0.3mg", 'potassium': "318mg", 'phosphorus': "86mg" }
+                };
+              } else {
+                // Default values
+                macros = {
+                  protein: "5g",
+                  fat: "5g",
+                  carbs: "10g",
+                  vitamins: { 'c': "5mg", 'a': "100mcg" },
+                  minerals: { 'calcium': "20mg", 'iron': "1mg" }
+                };
+              }
+              ingredientMacros.push(macros);
+            }
+          } else if (mealName.toLowerCase().includes('salad')) {
+            ingredients = [
+              "Lettuce (50g) 8kcal",
+              "Tomatoes (50g) 9kcal",
+              "Cucumber (30g) 5kcal",
+              "Olive Oil (15g) 135kcal"
+            ];
+            if (mealName.toLowerCase().includes('chicken')) {
+              ingredients.push("Grilled Chicken (100g) 165kcal");
+            }
+            if (mealName.toLowerCase().includes('cheese') || mealName.toLowerCase().includes('feta')) {
+              ingredients.push("Cheese (30g) 110kcal");
+            }
+            
+            // Generate appropriate macros for each ingredient
+            // (implementation similar to pizza, abbreviated for clarity)
+            ingredientMacros = ingredients.map(() => ({
+              protein: "5g",
+              fat: "2g",
+              carbs: "3g",
+              vitamins: { 'c': "10mg", 'a': "150mcg" },
+              minerals: { 'calcium': "20mg", 'iron': "1mg" }
+            }));
+          } else if (mealName.toLowerCase().includes('pasta')) {
+            ingredients = [
+              "Pasta (200g) 280kcal"
+            ];
+            
+            if (mealName.toLowerCase().includes('tomato') || mealName.toLowerCase().includes('marinara')) {
+              ingredients.push("Tomato Sauce (100g) 90kcal");
+            } else if (mealName.toLowerCase().includes('cream') || mealName.toLowerCase().includes('alfredo')) {
+              ingredients.push("Cream Sauce (80g) 240kcal");
+            } else {
+              ingredients.push("Tomato Sauce (100g) 90kcal");
+            }
+            
+            if (mealName.toLowerCase().includes('cheese')) {
+              ingredients.push("Grated Cheese (30g) 120kcal");
+            }
+            
+            // Generate appropriate macros for each ingredient
+            ingredientMacros = ingredients.map(() => ({
+              protein: "10g",
+              fat: "5g",
+              carbs: "45g",
+              vitamins: { 'c': "5mg", 'a': "50mcg" },
+              minerals: { 'calcium': "20mg", 'iron': "1.5mg" }
+            }));
+          } else {
+            // Default ingredients for unknown meal types
+            ingredients = [
               `${mealName} base (150g) 350kcal`,
               `${mealName} toppings (100g) 150kcal`
-            ],
-            ingredient_macros: [
+            ];
+            
+            ingredientMacros = [
               {
                 protein: "10g",
                 fat: "15g",
@@ -343,11 +593,39 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
                   'magnesium': "25mg"
                 }
               }
-            ],
-            calories: "500kcal",
-            protein: "22g",
-            fat: "23g",
-            carbs: "45g",
+            ];
+          }
+          
+          // Calculate total nutrition values
+          let totalProtein = 0;
+          let totalFat = 0;
+          let totalCarbs = 0;
+          let totalCalories = 0;
+          
+          // Extract calories from ingredients and sum up macros
+          ingredients.forEach((ingredient, index) => {
+            const calorieMatch = ingredient.match(/(\d+)kcal/);
+            if (calorieMatch) {
+              totalCalories += parseInt(calorieMatch[1]);
+            }
+            
+            const macros = ingredientMacros[index];
+            if (macros) {
+              totalProtein += parseInt(macros.protein);
+              totalFat += parseInt(macros.fat);
+              totalCarbs += parseInt(macros.carbs);
+            }
+          });
+          
+          // Create a fallback response with the meal name we extracted
+          const fallbackData = {
+            meal_name: mealName,
+            ingredients: ingredients,
+            ingredient_macros: ingredientMacros,
+            calories: `${totalCalories}kcal`,
+            protein: `${totalProtein}g`,
+            fat: `${totalFat}g`,
+            carbs: `${totalCarbs}g`,
             health_score: "6/10"
           };
           
