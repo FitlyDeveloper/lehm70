@@ -582,6 +582,8 @@ class _SnapFoodState extends State<SnapFood> {
 
           if (match != null) {
             String ingredientName = match.group(1)?.trim() ?? name;
+            // Replace underscores with spaces for display in the UI
+            ingredientName = ingredientName.replaceAll('_', ' ');
             String weight = match.group(2) ?? "30g";
             int kcal = int.tryParse(match.group(3) ?? "75") ?? 75;
 
@@ -592,8 +594,10 @@ class _SnapFoodState extends State<SnapFood> {
             };
           } else {
             // Default values if no match
+            // Replace underscores with spaces for display in the UI
+            String ingredientName = name.replaceAll('_', ' ');
             ingredientData = {
-              'name': name,
+              'name': ingredientName,
               'amount': "30g",
               'calories': 75,
             };

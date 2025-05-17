@@ -114,14 +114,14 @@ app.post('/api/analyze-food', limiter, checkApiKey, async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: '[NUTRIENTS EXTRACTION PRIORITY] You are a nutrition expert analyzing food images. YOUR RESPONSE MUST INCLUDE ALL NUTRIENTS LISTED BELOW FOR EACH INGREDIENT OR YOU WILL FAIL. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for all nutrients\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient AND micronutrient breakdown for EACH ingredient\n6. CRITICAL: EVERY ingredient must include ALL of these nutrients (no exceptions):\n   - protein: string with g unit (e.g., "12.5g")\n   - fat: string with g unit (e.g., "5.2g")\n   - carbs: string with g unit (e.g., "45.7g")\n   \n   VITAMINS:\n   - vitamin_a: string with mcg unit (e.g., "300mcg")\n   - vitamin_c: string with mg unit (e.g., "15mg")\n   - vitamin_d: string with mcg unit (e.g., "0.5mcg")\n   - vitamin_e: string with mg unit (e.g., "1.2mg")\n   - vitamin_k: string with mcg unit (e.g., "120mcg")\n   - vitamin_b1: string with mg unit (e.g., "0.4mg")\n   - vitamin_b2: string with mg unit (e.g., "0.5mg")\n   - vitamin_b3: string with mg unit (e.g., "6.2mg")\n   - vitamin_b5: string with mg unit (e.g., "1.8mg")\n   - vitamin_b6: string with mg unit (e.g., "0.6mg")\n   - vitamin_b7: string with mcg unit (e.g., "12mcg")\n   - vitamin_b9: string with mcg unit (e.g., "80mcg")\n   - vitamin_b12: string with mcg unit (e.g., "1.2mcg")\n   \n   MINERALS:\n   - calcium: string with mg unit (e.g., "25mg")\n   - chloride: string with mg unit (e.g., "150mg")\n   - chromium: string with mcg unit (e.g., "12mcg")\n   - copper: string with mcg unit (e.g., "220mcg")\n   - fluoride: string with mg unit (e.g., "0.8mg")\n   - iodine: string with mcg unit (e.g., "35mcg")\n   - iron: string with mg unit (e.g., "1.8mg")\n   - magnesium: string with mg unit (e.g., "56mg")\n   - manganese: string with mg unit (e.g., "0.8mg")\n   - molybdenum: string with mcg unit (e.g., "15mcg")\n   - phosphorus: string with mg unit (e.g., "120mg")\n   - potassium: string with mg unit (e.g., "350mg")\n   - selenium: string with mcg unit (e.g., "18mcg")\n   - sodium: string with mg unit (e.g., "15mg")\n   - zinc: string with mg unit (e.g., "2.5mg")\n   \n   OTHER NUTRIENTS:\n   - fiber: string with g unit (e.g., "3.5g")\n   - cholesterol: string with mg unit (e.g., "25mg")\n   - sugar: string with g unit (e.g., "6.2g")\n   - saturated_fats: string with g unit (e.g., "2.1g")\n   - omega_3: string with mg unit (e.g., "120mg")\n   - omega_6: string with g unit (e.g., "1.2g")\n   \n7. Use decimal places for precise values\n8. NEVER separate numbers from their units with spaces\n9. DO NOT respond with markdown code blocks or text explanations\n10. DO NOT prefix your response with "json" or ```\n11. ONLY RETURN A RAW JSON OBJECT\n12. VERIFY your response includes ALL required nutrients for EACH ingredient before submitting\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {\n      "protein": "12.5g",\n      "fat": "5.2g",\n      "carbs": "45.7g",\n      "vitamin_a": "300mcg",\n      "vitamin_c": "15mg",\n      "vitamin_d": "0.5mcg",\n      "vitamin_e": "1.2mg",\n      "vitamin_k": "120mcg",\n      "vitamin_b1": "0.4mg",\n      "vitamin_b2": "0.5mg",\n      "vitamin_b3": "6.2mg",\n      "vitamin_b5": "1.8mg",\n      "vitamin_b6": "0.6mg",\n      "vitamin_b7": "12mcg",\n      "vitamin_b9": "80mcg",\n      "vitamin_b12": "1.2mcg",\n      "calcium": "25mg",\n      "chloride": "150mg",\n      "chromium": "12mcg",\n      "copper": "220mcg",\n      "fluoride": "0.8mg",\n      "iodine": "35mcg",\n      "iron": "1.8mg",\n      "magnesium": "56mg",\n      "manganese": "0.8mg",\n      "molybdenum": "15mcg",\n      "phosphorus": "120mg",\n      "potassium": "350mg",\n      "selenium": "18mcg",\n      "sodium": "15mg",\n      "zinc": "2.5mg",\n      "fiber": "3.5g",\n      "cholesterol": "25mg",\n      "sugar": "6.2g",\n      "saturated_fats": "2.1g",\n      "omega_3": "120mg",\n      "omega_6": "1.2g"\n    },\n    {\n      "protein": "8.3g",\n      "fat": "3.1g",\n      "carbs": "28.3g",\n      "vitamin_a": "150mcg",\n      "vitamin_c": "8mg",\n      "vitamin_d": "0.2mcg",\n      "vitamin_e": "0.8mg",\n      "vitamin_k": "85mcg",\n      "vitamin_b1": "0.3mg",\n      "vitamin_b2": "0.4mg",\n      "vitamin_b3": "4.8mg",\n      "vitamin_b5": "1.2mg",\n      "vitamin_b6": "0.4mg",\n      "vitamin_b7": "8mcg",\n      "vitamin_b9": "60mcg",\n      "vitamin_b12": "0.8mcg",\n      "calcium": "15mg",\n      "chloride": "120mg",\n      "chromium": "8mcg",\n      "copper": "180mcg",\n      "fluoride": "0.5mg",\n      "iodine": "25mcg",\n      "iron": "1.2mg",\n      "magnesium": "42mg",\n      "manganese": "0.6mg",\n      "molybdenum": "12mcg",\n      "phosphorus": "90mg",\n      "potassium": "220mg",\n      "selenium": "14mcg",\n      "sodium": "10mg",\n      "zinc": "1.8mg",\n      "fiber": "2.1g",\n      "cholesterol": "18mg",\n      "sugar": "4.5g",\n      "saturated_fats": "1.5g",\n      "omega_3": "80mg",\n      "omega_6": "0.8g"\n    }\n  ],\n  "calories": "500kcal",\n  "protein": "20.8g",\n  "fat": "8.3g",\n  "carbs": "74.0g",\n  "vitamin_a": "450mcg",\n  "vitamin_c": "23mg",\n  "vitamin_d": "0.7mcg",\n  "vitamin_e": "2.0mg",\n  "vitamin_k": "205mcg",\n  "vitamin_b1": "0.7mg",\n  "vitamin_b2": "0.9mg",\n  "vitamin_b3": "11.0mg",\n  "vitamin_b5": "3.0mg",\n  "vitamin_b6": "1.0mg",\n  "vitamin_b7": "20mcg",\n  "vitamin_b9": "140mcg",\n  "vitamin_b12": "2.0mcg",\n  "calcium": "40mg",\n  "chloride": "270mg",\n  "chromium": "20mcg",\n  "copper": "400mcg",\n  "fluoride": "1.3mg",\n  "iodine": "60mcg",\n  "iron": "3.0mg",\n  "magnesium": "98mg",\n  "manganese": "1.4mg",\n  "molybdenum": "27mcg",\n  "phosphorus": "210mg",\n  "potassium": "570mg",\n  "selenium": "32mcg",\n  "sodium": "25mg",\n  "zinc": "4.3mg",\n  "fiber": "5.6g",\n  "cholesterol": "43mg",\n  "sugar": "10.7g",\n  "saturated_fats": "3.6g",\n  "omega_3": "200mg",\n  "omega_6": "2.0g",\n  "health_score": "7/10"\n}'
+            content: '[NUTRIENTS EXTRACTION PRIORITY] You are a nutrition expert analyzing food images. YOUR RESPONSE MUST INCLUDE ALL NUTRIENTS LISTED BELOW FOR EACH INGREDIENT OR YOU WILL FAIL. OUTPUT MUST BE VALID JSON AND NOTHING ELSE.\n\nFORMAT RULES:\n1. Return a single meal name for the entire image (e.g., "Pasta Meal", "Breakfast Plate")\n2. List ingredients with weights and calories (e.g., "Pasta (100g) 200kcal")\n3. Return total values for all nutrients\n4. Add a health score (1-10)\n5. CRITICAL: provide EXACT macronutrient AND micronutrient breakdown for EACH ingredient\n6. CRITICAL: EVERY ingredient must include ALL of these nutrients (no exceptions):\n   - protein: string with g unit (e.g., "12.5g")\n   - fat: string with g unit (e.g., "5.2g")\n   - carbs: string with g unit (e.g., "45.7g")\n   \n   VITAMINS:\n   - vitamin_a: string with mcg unit (e.g., "300mcg")\n   - vitamin_c: string with mg unit (e.g., "15mg")\n   - vitamin_d: string with mcg unit (e.g., "0.5mcg")\n   - vitamin_e: string with mg unit (e.g., "1.2mg")\n   - vitamin_k: string with mcg unit (e.g., "120mcg")\n   - vitamin_b1: string with mg unit (e.g., "0.4mg")\n   - vitamin_b2: string with mg unit (e.g., "0.5mg")\n   - vitamin_b3: string with mg unit (e.g., "6.2mg")\n   - vitamin_b5: string with mg unit (e.g., "1.8mg")\n   - vitamin_b6: string with mg unit (e.g., "0.6mg")\n   - vitamin_b7: string with mcg unit (e.g., "12mcg")\n   - vitamin_b9: string with mcg unit (e.g., "80mcg")\n   - vitamin_b12: string with mcg unit (e.g., "1.2mcg")\n   \n   MINERALS:\n   - calcium: string with mg unit (e.g., "25mg")\n   - chloride: string with mg unit (e.g., "150mg")\n   - chromium: string with mcg unit (e.g., "12mcg")\n   - copper: string with mcg unit (e.g., "220mcg")\n   - fluoride: string with mg unit (e.g., "0.8mg")\n   - iodine: string with mcg unit (e.g., "35mcg")\n   - iron: string with mg unit (e.g., "1.8mg")\n   - magnesium: string with mg unit (e.g., "56mg")\n   - manganese: string with mg unit (e.g., "0.8mg")\n   - molybdenum: string with mcg unit (e.g., "15mcg")\n   - phosphorus: string with mg unit (e.g., "120mg")\n   - potassium: string with mg unit (e.g., "350mg")\n   - selenium: string with mcg unit (e.g., "18mcg")\n   - sodium: string with mg unit (e.g., "15mg")\n   - zinc: string with mg unit (e.g., "2.5mg")\n   \n   OTHER NUTRIENTS:\n   - fiber: string with g unit (e.g., "3.5g")\n   - cholesterol: string with mg unit (e.g., "25mg")\n   - sugar: string with g unit (e.g., "6.2g")\n   - saturated_fats: string with g unit (e.g., "2.1g")\n   - omega_3: string with mg unit (e.g., "120mg")\n   - omega_6: string with g unit (e.g., "1.2g")\n   \n7. Use decimal places for precise values\n8. NEVER separate numbers from their units with spaces\n9. DO NOT respond with markdown code blocks or text explanations\n10. DO NOT prefix your response with "json" or ```\n11. ONLY RETURN A RAW JSON OBJECT\n12. VERIFY your response includes ALL required nutrients for EACH ingredient before submitting\n13. CRITICALLY IMPORTANT: Always identify REAL food ingredients (e.g., "Rice", "Chicken", "Broccoli", "Pasta", "Cheese") - never use generic placeholders like "Mixed ingredients"\n14. If you cannot identify specific ingredients but see a food item, name actual foods that would reasonably be in the dish (e.g., for a stew: "Beef", "Potatoes", "Carrots", "Onions")\n\nEXACT FORMAT REQUIRED:\n{\n  "meal_name": "Meal Name",\n  "ingredients": ["Item1 (weight) calories", "Item2 (weight) calories"],\n  "ingredient_macros": [\n    {\n      "protein": "12.5g",\n      "fat": "5.2g",\n      "carbs": "45.7g",\n      "vitamin_a": "300mcg",\n      "vitamin_c": "15mg",\n      "vitamin_d": "0.5mcg",\n      "vitamin_e": "1.2mg",\n      "vitamin_k": "120mcg",\n      "vitamin_b1": "0.4mg",\n      "vitamin_b2": "0.5mg",\n      "vitamin_b3": "6.2mg",\n      "vitamin_b5": "1.8mg",\n      "vitamin_b6": "0.6mg",\n      "vitamin_b7": "12mcg",\n      "vitamin_b9": "80mcg",\n      "vitamin_b12": "1.2mcg",\n      "calcium": "25mg",\n      "chloride": "150mg",\n      "chromium": "12mcg",\n      "copper": "220mcg",\n      "fluoride": "0.8mg",\n      "iodine": "35mcg",\n      "iron": "1.8mg",\n      "magnesium": "56mg",\n      "manganese": "0.8mg",\n      "molybdenum": "15mcg",\n      "phosphorus": "120mg",\n      "potassium": "350mg",\n      "selenium": "18mcg",\n      "sodium": "15mg",\n      "zinc": "2.5mg",\n      "fiber": "3.5g",\n      "cholesterol": "25mg",\n      "sugar": "6.2g",\n      "saturated_fats": "2.1g",\n      "omega_3": "120mg",\n      "omega_6": "1.2g"\n    },\n    {\n      "protein": "8.3g",\n      "fat": "3.1g",\n      "carbs": "28.3g",\n      "vitamin_a": "150mcg",\n      "vitamin_c": "8mg",\n      "vitamin_d": "0.2mcg",\n      "vitamin_e": "0.8mg",\n      "vitamin_k": "85mcg",\n      "vitamin_b1": "0.3mg",\n      "vitamin_b2": "0.4mg",\n      "vitamin_b3": "4.8mg",\n      "vitamin_b5": "1.2mg",\n      "vitamin_b6": "0.4mg",\n      "vitamin_b7": "8mcg",\n      "vitamin_b9": "60mcg",\n      "vitamin_b12": "0.8mcg",\n      "calcium": "15mg",\n      "chloride": "120mg",\n      "chromium": "8mcg",\n      "copper": "180mcg",\n      "fluoride": "0.5mg",\n      "iodine": "25mcg",\n      "iron": "1.2mg",\n      "magnesium": "42mg",\n      "manganese": "0.6mg",\n      "molybdenum": "12mcg",\n      "phosphorus": "90mg",\n      "potassium": "220mg",\n      "selenium": "14mcg",\n      "sodium": "10mg",\n      "zinc": "1.8mg",\n      "fiber": "2.1g",\n      "cholesterol": "18mg",\n      "sugar": "4.5g",\n      "saturated_fats": "1.5g",\n      "omega_3": "80mg",\n      "omega_6": "0.8g"\n    }\n  ],\n  "calories": "500kcal",\n  "protein": "20.8g",\n  "fat": "8.3g",\n  "carbs": "74.0g",\n  "vitamin_a": "450mcg",\n  "vitamin_c": "23mg",\n  "vitamin_d": "0.7mcg",\n  "vitamin_e": "2.0mg",\n  "vitamin_k": "205mcg",\n  "vitamin_b1": "0.7mg",\n  "vitamin_b2": "0.9mg",\n  "vitamin_b3": "11.0mg",\n  "vitamin_b5": "3.0mg",\n  "vitamin_b6": "1.0mg",\n  "vitamin_b7": "20mcg",\n  "vitamin_b9": "140mcg",\n  "vitamin_b12": "2.0mcg",\n  "calcium": "40mg",\n  "chloride": "270mg",\n  "chromium": "20mcg",\n  "copper": "400mcg",\n  "fluoride": "1.3mg",\n  "iodine": "60mcg",\n  "iron": "3.0mg",\n  "magnesium": "98mg",\n  "manganese": "1.4mg",\n  "molybdenum": "27mcg",\n  "phosphorus": "210mg",\n  "potassium": "570mg",\n  "selenium": "32mcg",\n  "sodium": "25mg",\n  "zinc": "4.3mg",\n  "fiber": "5.6g",\n  "cholesterol": "43mg",\n  "sugar": "10.7g",\n  "saturated_fats": "3.6g",\n  "omega_3": "200mg",\n  "omega_6": "2.0g",\n  "health_score": "7/10"\n}'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return ALL required nutrients in the EXACT format - ALL fields are required for EACH ingredient. MUST include all nutrients for EACH ingredient AND all totals.\n\nThe response MUST match this format:\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings,\n  \"ingredient_macros\": array containing objects with ALL these nutrients for EACH ingredient:\n    - protein: string with g unit\n    - fat: string with g unit\n    - carbs: string with g unit\n    - vitamin_a: string with mcg unit\n    - vitamin_c: string with mg unit\n    - vitamin_d: string with mcg unit\n    - vitamin_e: string with mg unit\n    - vitamin_k: string with mcg unit\n    - vitamin_b1: string with mg unit\n    - vitamin_b2: string with mg unit\n    - vitamin_b3: string with mg unit\n    - vitamin_b5: string with mg unit\n    - vitamin_b6: string with mg unit\n    - vitamin_b7: string with mcg unit\n    - vitamin_b9: string with mcg unit\n    - vitamin_b12: string with mcg unit\n    - calcium: string with mg unit\n    - chloride: string with mg unit\n    - chromium: string with mcg unit\n    - copper: string with mcg unit\n    - fluoride: string with mg unit\n    - iodine: string with mcg unit\n    - iron: string with mg unit\n    - magnesium: string with mg unit\n    - manganese: string with mg unit\n    - molybdenum: string with mcg unit\n    - phosphorus: string with mg unit\n    - potassium: string with mg unit\n    - selenium: string with mcg unit\n    - sodium: string with mg unit\n    - zinc: string with mg unit\n    - fiber: string with g unit\n    - cholesterol: string with mg unit\n    - sugar: string with g unit\n    - saturated_fats: string with g unit\n    - omega_3: string with mg unit\n    - omega_6: string with g unit\n  \"calories\": string with kcal unit,\n  \"protein\": string with g unit,\n  \"fat\": string with g unit,\n  \"carbs\": string with g unit,\n  \"vitamin_a\": string with mcg unit,\n  \"vitamin_c\": string with mg unit,\n  \"vitamin_d\": string with mcg unit,\n  \"vitamin_e\": string with mg unit,\n  \"vitamin_k\": string with mcg unit,\n  \"vitamin_b1\": string with mg unit,\n  \"vitamin_b2\": string with mg unit,\n  \"vitamin_b3\": string with mg unit,\n  \"vitamin_b5\": string with mg unit,\n  \"vitamin_b6\": string with mg unit,\n  \"vitamin_b7\": string with mcg unit,\n  \"vitamin_b9\": string with mcg unit,\n  \"vitamin_b12\": string with mcg unit,\n  \"calcium\": string with mg unit,\n  \"chloride\": string with mg unit,\n  \"chromium\": string with mcg unit,\n  \"copper\": string with mcg unit,\n  \"fluoride\": string with mg unit,\n  \"iodine\": string with mcg unit,\n  \"iron\": string with mg unit,\n  \"magnesium\": string with mg unit,\n  \"manganese\": string with mg unit,\n  \"molybdenum\": string with mcg unit,\n  \"phosphorus\": string with mg unit,\n  \"potassium\": string with mg unit,\n  \"selenium\": string with mcg unit,\n  \"sodium\": string with mg unit,\n  \"zinc\": string with mg unit,\n  \"fiber\": string with g unit,\n  \"cholesterol\": string with mg unit,\n  \"sugar\": string with g unit,\n  \"saturated_fats\": string with g unit,\n  \"omega_3\": string with mg unit,\n  \"omega_6\": string with g unit,\n  \"health_score\": string\n}"
+                text: "RETURN ONLY RAW JSON - NO TEXT, NO CODE BLOCKS, NO EXPLANATIONS. Analyze this food image and return ALL required nutrients in the EXACT format - ALL fields are required for EACH ingredient. MUST include all nutrients for EACH ingredient AND all totals.\n\nThe response MUST match this format:\n{\n  \"meal_name\": string,\n  \"ingredients\": array of strings,\n  \"ingredient_macros\": array containing objects with ALL these nutrients for EACH ingredient:\n    - protein: string with g unit\n    - fat: string with g unit\n    - carbs: string with g unit\n    - vitamin_a: string with mcg unit\n    - vitamin_c: string with mg unit\n    - vitamin_d: string with mcg unit\n    - vitamin_e: string with mg unit\n    - vitamin_k: string with mcg unit\n    - vitamin_b1: string with mg unit\n    - vitamin_b2: string with mg unit\n    - vitamin_b3: string with mg unit\n    - vitamin_b5: string with mg unit\n    - vitamin_b6: string with mg unit\n    - vitamin_b7: string with mcg unit\n    - vitamin_b9: string with mcg unit\n    - vitamin_b12: string with mcg unit\n    - calcium: string with mg unit\n    - chloride: string with mg unit\n    - chromium: string with mcg unit\n    - copper: string with mcg unit\n    - fluoride: string with mg unit\n    - iodine: string with mcg unit\n    - iron: string with mg unit\n    - magnesium: string with mg unit\n    - manganese: string with mg unit\n    - molybdenum: string with mcg unit\n    - phosphorus: string with mg unit\n    - potassium: string with mg unit\n    - selenium: string with mcg unit\n    - sodium: string with mg unit\n    - zinc: string with mg unit\n    - fiber: string with g unit\n    - cholesterol: string with mg unit\n    - sugar: string with g unit\n    - saturated_fats: string with g unit\n    - omega_3: string with mg unit\n    - omega_6: string with g unit\n  \"calories\": string with kcal unit,\n  \"protein\": string with g unit,\n  \"fat\": string with g unit,\n  \"carbs\": string with g unit,\n  \"vitamin_a\": string with mcg unit,\n  \"vitamin_c\": string with mg unit,\n  \"vitamin_d\": string with mcg unit,\n  \"vitamin_e\": string with mg unit,\n  \"vitamin_k\": string with mcg unit,\n  \"vitamin_b1\": string with mg unit,\n  \"vitamin_b2\": string with mg unit,\n  \"vitamin_b3\": string with mg unit,\n  \"vitamin_b5\": string with mg unit,\n  \"vitamin_b6\": string with mg unit,\n  \"vitamin_b7\": string with mcg unit,\n  \"vitamin_b9\": string with mcg unit,\n  \"vitamin_b12\": string with mcg unit,\n  \"calcium\": string with mg unit,\n  \"chloride\": string with mg unit,\n  \"chromium\": string with mcg unit,\n  \"copper\": string with mcg unit\n  \"fluoride\": string with mg unit,\n  \"iodine\": string with mcg unit,\n  \"iron\": string with mg unit,\n  \"magnesium\": string with mg unit,\n  \"manganese\": string with mg unit,\n  \"molybdenum\": string with mcg unit,\n  \"phosphorus\": string with mg unit,\n  \"potassium\": string with mg unit,\n  \"selenium\": string with mcg unit,\n  \"sodium\": string with mg unit,\n  \"zinc\": string with mg unit,\n  \"fiber\": string with g unit,\n  \"cholesterol\": string with mg unit,\n  \"sugar\": string with g unit,\n  \"saturated_fats\": string with g unit,\n  \"omega_3\": string with mg unit,\n  \"omega_6\": string with g unit,\n  \"health_score\": string\n}"
               },
               {
                 type: 'image_url',
@@ -401,36 +401,58 @@ function transformToRequiredFormat(data) {
   return {
     meal_name: "Mixed Meal",
     ingredients: [
-      "Mixed_ingredients (100g) 200kcal"  // Use underscore instead of space to avoid splitting
+      "Rice (50g) 100kcal",
+      "Chicken (50g) 100kcal"
     ],
     ingredient_macros: [
       {
-        protein: "10.5g",  // Use string format with units to match API spec
-        fat: "7.3g",
-        carbs: "30.2g",
+        protein: "2.0g",
+        fat: "0.3g",
+        carbs: "22.5g",
         vitamins: Object.keys(topLevelVitamins).length > 0 ? 
           { ...topLevelVitamins } : 
           {
-            'c': 2.0,
-            'a': 100,
-            'b1': 0.1,
-            'b2': 0.2
+            'c': "1.0mg",
+            'a': "0mcg",
+            'b1': "0.1mg",
+            'b2': "0.01mg"
           },
         minerals: Object.keys(topLevelMinerals).length > 0 ? 
           { ...topLevelMinerals } : 
           {
-            'calcium': 30,
-            'iron': 1.2,
-            'potassium': 150,
-            'magnesium': 20
+            'calcium': "15mg",
+            'iron': "0.4mg",
+            'potassium': "35mg",
+            'magnesium': "12mg"
+          }
+      },
+      {
+        protein: "18.0g",
+        fat: "3.0g",
+        carbs: "0.0g",
+        vitamins: Object.keys(topLevelVitamins).length > 0 ? 
+          { ...topLevelVitamins } : 
+          {
+            'c': "0.0mg",
+            'a': "15mcg",
+            'b1': "0.05mg",
+            'b2': "0.12mg"
+          },
+        minerals: Object.keys(topLevelMinerals).length > 0 ? 
+          { ...topLevelMinerals } : 
+          {
+            'calcium': "5mg",
+            'iron': "0.6mg",
+            'potassium': "200mg",
+            'magnesium': "20mg"
           }
       }
     ],
-    calories: 500,
+    calories: 200,
     protein: 20,
-    fat: 15,
-    carbs: 60,
-    vitamin_c: 2,
+    fat: 3.3,
+    carbs: 22.5,
+    vitamin_c: 1,
     health_score: "6/10",
     vitamins: topLevelVitamins,
     minerals: topLevelMinerals
@@ -727,99 +749,4 @@ function transformTextToRequiredFormat(text) {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API Key configured: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
-  console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
-});
-
-// Error handling for unhandled promises
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Promise Rejection:', error);
-});
-
-// Utility function to process ingredient nutrients
-// This ensures compatibility with both string and numeric values
-function addMicronutrientsToTopLevel(data) {
-  if (!data || !data.ingredient_macros || !Array.isArray(data.ingredient_macros)) {
-    console.log('No ingredient macros to process');
-    return data;
-  }
-  
-  try {
-    console.log('Processing ALL nutrients from OpenAI response...');
-    
-    // Extract and consolidate nutrients from all ingredients
-    const allNutrients = {};
-    // Include ALL nutrients that can be present in the API response
-    const nutrientsToExtract = [
-      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
-      'vitamin_b1', 'vitamin_b2', 'vitamin_b3', 'vitamin_b5', 'vitamin_b6',
-      'vitamin_b7', 'vitamin_b9', 'vitamin_b12',
-      'calcium', 'chloride', 'chromium', 'copper', 'fluoride', 'iodine',
-      'iron', 'magnesium', 'manganese', 'molybdenum', 'phosphorus',
-      'potassium', 'selenium', 'sodium', 'zinc',
-      'fiber', 'cholesterol', 'sugar', 'saturated_fats', 'omega_3', 'omega_6'
-    ];
-    
-    // Process each ingredient
-    data.ingredient_macros.forEach(ingredient => {
-      nutrientsToExtract.forEach(nutrient => {
-        if (nutrient in ingredient) {
-          // Convert to proper format handling both string and numeric values
-          const value = ingredient[nutrient];
-          if (typeof value === 'string') {
-            // String value (e.g. "12.5g") - just use as is
-            allNutrients[nutrient] = value;
-          } else if (typeof value === 'number') {
-            // Numeric value - convert to string with appropriate unit
-            let unit = '';
-            if (nutrient === 'protein' || nutrient === 'fat' || nutrient === 'carbs' || 
-                nutrient === 'fiber' || nutrient === 'sugar' || nutrient === 'saturated_fats' ||
-                nutrient === 'omega_6') {
-              unit = 'g';
-            } else if (nutrient === 'vitamin_a' || nutrient === 'vitamin_d' || 
-                       nutrient === 'vitamin_b7' || nutrient === 'vitamin_b9' || 
-                       nutrient === 'vitamin_b12' || nutrient === 'vitamin_k' || 
-                       nutrient === 'chromium' || nutrient === 'copper' || 
-                       nutrient === 'iodine' || nutrient === 'molybdenum' || 
-                       nutrient === 'selenium') {
-              unit = 'mcg';
-            } else if (nutrient === 'cholesterol' || nutrient === 'omega_3' ||
-                       nutrient === 'vitamin_c' || nutrient === 'vitamin_e' || 
-                       nutrient === 'vitamin_b1' || nutrient === 'vitamin_b2' || 
-                       nutrient === 'vitamin_b3' || nutrient === 'vitamin_b5' || 
-                       nutrient === 'vitamin_b6' || nutrient === 'calcium' || 
-                       nutrient === 'chloride' || nutrient === 'fluoride' || 
-                       nutrient === 'iron' || nutrient === 'magnesium' || 
-                       nutrient === 'manganese' || nutrient === 'phosphorus' || 
-                       nutrient === 'potassium' || nutrient === 'sodium' || 
-                       nutrient === 'zinc') {
-              unit = 'mg';
-            }
-            allNutrients[nutrient] = value + unit;
-          }
-        }
-      });
-    });
-    
-    // Add all extracted nutrients to the top level
-    Object.keys(allNutrients).forEach(nutrient => {
-      if (!data[nutrient]) {
-        data[nutrient] = allNutrients[nutrient];
-      }
-    });
-    
-    // Log each nutrient that was processed for verification
-    console.log('Nutrients processed and added to response:');
-    Object.entries(allNutrients).forEach(([key, value]) => {
-      console.log(`  ${key}: ${value}`);
-    });
-    
-    console.log('All nutrients processed for Nutrition.dart display');
-    
-    return data;
-  } catch (error) {
-    console.error('JSON extraction failed:', error);
-    return data;
-  }
-} 
+  console.log(`
