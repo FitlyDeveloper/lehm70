@@ -747,6 +747,98 @@ function transformTextToRequiredFormat(text) {
   };
 }
 
+// Error handling for unhandled promises
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Promise Rejection:', error);
+});
+
+// Utility function to process ingredient nutrients
+// This ensures compatibility with both string and numeric values
+function addMicronutrientsToTopLevel(data) {
+  if (!data || !data.ingredient_macros || !Array.isArray(data.ingredient_macros)) {
+    console.log('No ingredient macros to process');
+    return data;
+  }
+  
+  try {
+    console.log('Processing ALL nutrients from OpenAI response...');
+    
+    // Extract and consolidate nutrients from all ingredients
+    const allNutrients = {};
+    // Include ALL nutrients that can be present in the API response
+    const nutrientsToExtract = [
+      'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
+      'vitamin_b1', 'vitamin_b2', 'vitamin_b3', 'vitamin_b5', 'vitamin_b6',
+      'vitamin_b7', 'vitamin_b9', 'vitamin_b12',
+      'calcium', 'chloride', 'chromium', 'copper', 'fluoride', 'iodine',
+      'iron', 'magnesium', 'manganese', 'molybdenum', 'phosphorus',
+      'potassium', 'selenium', 'sodium', 'zinc',
+      'fiber', 'cholesterol', 'sugar', 'saturated_fats', 'omega_3', 'omega_6'
+    ];
+    
+    // Process each ingredient
+    data.ingredient_macros.forEach(ingredient => {
+      nutrientsToExtract.forEach(nutrient => {
+        if (nutrient in ingredient) {
+          // Convert to proper format handling both string and numeric values
+          const value = ingredient[nutrient];
+          if (typeof value === 'string') {
+            // String value (e.g. "12.5g") - just use as is
+            allNutrients[nutrient] = value;
+          } else if (typeof value === 'number') {
+            // Numeric value - convert to string with appropriate unit
+            let unit = '';
+            if (nutrient === 'protein' || nutrient === 'fat' || nutrient === 'carbs' || 
+                nutrient === 'fiber' || nutrient === 'sugar' || nutrient === 'saturated_fats' ||
+                nutrient === 'omega_6') {
+              unit = 'g';
+            } else if (nutrient === 'vitamin_a' || nutrient === 'vitamin_d' || 
+                       nutrient === 'vitamin_b7' || nutrient === 'vitamin_b9' || 
+                       nutrient === 'vitamin_b12' || nutrient === 'vitamin_k' || 
+                       nutrient === 'chromium' || nutrient === 'copper' || 
+                       nutrient === 'iodine' || nutrient === 'molybdenum' || 
+                       nutrient === 'selenium') {
+              unit = 'mcg';
+            } else if (nutrient === 'cholesterol' || nutrient === 'omega_3' ||
+                       nutrient === 'vitamin_c' || nutrient === 'vitamin_e' || 
+                       nutrient === 'vitamin_b1' || nutrient === 'vitamin_b2' || 
+                       nutrient === 'vitamin_b3' || nutrient === 'vitamin_b5' || 
+                       nutrient === 'vitamin_b6' || nutrient === 'calcium' || 
+                       nutrient === 'chloride' || nutrient === 'fluoride' || 
+                       nutrient === 'iron' || nutrient === 'magnesium' || 
+                       nutrient === 'manganese' || nutrient === 'phosphorus' || 
+                       nutrient === 'potassium' || nutrient === 'sodium' || 
+                       nutrient === 'zinc') {
+              unit = 'mg';
+            }
+            allNutrients[nutrient] = value + unit;
+          }
+        }
+      });
+    });
+    
+    // Add all extracted nutrients to the top level
+    Object.keys(allNutrients).forEach(nutrient => {
+      if (!data[nutrient]) {
+        data[nutrient] = allNutrients[nutrient];
+      }
+    });
+    
+    // Log each nutrient that was processed for verification
+    console.log('Nutrients processed and added to response:');
+    Object.entries(allNutrients).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}`);
+    });
+    
+    console.log('All nutrients processed for Nutrition.dart display');
+    
+    return data;
+  } catch (error) {
+    console.error('JSON extraction failed:', error);
+    return data;
+  }
+}
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
